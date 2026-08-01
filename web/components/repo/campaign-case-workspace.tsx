@@ -9,6 +9,7 @@ import {
   PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
+import { CaseShell } from "@/components/case/case-shell";
 import { Transcript } from "@/components/review/transcript";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,12 +54,12 @@ export function CampaignCaseWorkspace({
   const [stopping, setStopping] = useState(false);
   const [stopError, setStopError] = useState<string | null>(null);
   const [kickoffReady, setKickoffReady] = useState(false);
+  const [resetDefaultSignal, setResetDefaultSignal] = useState(0);
   const campaign = useMemo(
     () => extractCampaign(agent.messages),
     [agent.messages],
   );
 
-  // Persist kind/ledger; fill repo only when missing so a mismatched URL can't rebind the case.
   useEffect(() => {
     updateSession(sessionId, {
       kind: "campaign",
@@ -134,6 +135,7 @@ export function CampaignCaseWorkspace({
 
   const rerun = useCallback(() => {
     if (!canRerun) return;
+    setResetDefaultSignal((n) => n + 1);
     void agent.sendMessage(
       `Re-investigate ${ledgerCaseId}: load_fixture_case if needed, investigate_case, then submit_campaign.`,
     );
@@ -145,70 +147,92 @@ export function CampaignCaseWorkspace({
     void agent.sendMessage(text);
   }
 
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3 lg:px-6">
-        <ShieldAlertIcon className="size-4 text-muted-foreground" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-medium text-sm">
-            {session?.headline ??
-              session?.title ??
-              `Campaign · ${ledgerCaseId}`}
-          </p>
-          <p className="truncate text-muted-foreground text-xs">
-            Ledger case {ledgerCaseId} · {owner}/{repo}
-          </p>
-        </div>
-        <span className="flex items-center gap-1.5 text-xs">
-          <span
-            className={cn(
-              "size-2 rounded-full",
-              working && "animate-pulse bg-amber-500",
-              !working && agent.status !== "error" && "bg-emerald-500",
-              agent.status === "error" && "bg-red-500",
-            )}
-          />
-          <span className="text-muted-foreground">
-            {working
-              ? "Investigating"
-              : agent.status === "error"
-                ? "Error"
-                : "Ready"}
-          </span>
-        </span>
-        {working ? (
-          <Button
-            className="gap-1.5"
-            disabled={stopping}
-            onClick={stop}
-            size="sm"
-            variant="outline"
-          >
-            <SquareIcon className="size-3.5" />
-            {stopping ? "Stopping…" : "Stop"}
-          </Button>
-        ) : (
-          <Button
-            className="gap-1.5"
-            disabled={!canRerun}
-            onClick={rerun}
-            size="sm"
-            variant="outline"
-          >
-            <PlayIcon className="size-3.5" />
-            Re-run
-          </Button>
-        )}
+  const toolbar = (
+    <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3 lg:px-6">
+      <ShieldAlertIcon className="size-4 text-muted-foreground" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium text-sm">
+          {session?.headline ??
+            session?.title ??
+            `Campaign · ${ledgerCaseId}`}
+        </p>
+        <p className="truncate text-muted-foreground text-xs">
+          Ledger case {ledgerCaseId} · {owner}/{repo}
+        </p>
       </div>
-
-      {(agent.error || stopError) && (
-        <div className="border-b bg-destructive/10 px-6 py-2 text-destructive text-sm">
-          {agent.error?.message ?? stopError}
-        </div>
+      <span className="flex items-center gap-1.5 text-xs">
+        <span
+          className={cn(
+            "size-2 rounded-full",
+            working && "animate-pulse bg-amber-500",
+            !working && agent.status !== "error" && "bg-emerald-500",
+            agent.status === "error" && "bg-red-500",
+          )}
+        />
+        <span className="text-muted-foreground">
+          {working
+            ? "Investigating"
+            : agent.status === "error"
+              ? "Error"
+              : "Ready"}
+        </span>
+      </span>
+      {working ? (
+        <Button
+          className="gap-1.5"
+          disabled={stopping}
+          onClick={stop}
+          size="sm"
+          variant="outline"
+        >
+          <SquareIcon className="size-3.5" />
+          {stopping ? "Stopping…" : "Stop"}
+        </Button>
+      ) : (
+        <Button
+          className="gap-1.5"
+          disabled={!canRerun}
+          onClick={rerun}
+          size="sm"
+          variant="outline"
+        >
+          <PlayIcon className="size-3.5" />
+          Re-run
+        </Button>
       )}
+    </div>
+  );
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6 lg:px-6">
+  const banner =
+    agent.error || stopError ? (
+      <div className="border-b bg-destructive/10 px-6 py-2 text-destructive text-sm">
+        {agent.error?.message ?? stopError}
+      </div>
+    ) : null;
+
+  return (
+    <CaseShell
+      banner={banner}
+      hasError={agent.status === "error"}
+      hasResult={Boolean(campaign)}
+      orchestration={
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 px-4 py-6 lg:px-6">
+          <p className="font-medium text-sm">
+            {working
+              ? "Investigating the PR sequence…"
+              : kickoffReady
+                ? "Waiting for control-plane tools"
+                : "Preparing investigation…"}
+          </p>
+          <p className="text-muted-foreground text-sm text-pretty">
+            Orchestration detail lands in the next slice. For now, watch the
+            Transcript tab or wait for the Report when{" "}
+            <code className="text-xs">submit_campaign</code> settles.
+          </p>
+        </div>
+      }
+      overview={
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-6 lg:px-6">
           <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">
             <p className="font-medium">Supply-chain campaign demo</p>
             <p className="mt-1 text-muted-foreground text-pretty">
@@ -218,51 +242,54 @@ export function CampaignCaseWorkspace({
               <code className="text-xs">{ledgerCaseId}</code>.
             </p>
           </div>
-
+          <p className="text-muted-foreground text-sm text-pretty">
+            Sequence narrative and fixture caveat expand in a follow-up commit.
+          </p>
+        </div>
+      }
+      report={
+        <div className="mx-auto w-full max-w-2xl px-4 py-6 lg:px-6">
           {campaign ? (
             <CampaignResultView campaign={campaign} />
           ) : (
             <div className="space-y-1 text-sm">
               <p className="font-medium">
-                {working
-                  ? "Investigating the PR sequence…"
-                  : kickoffReady
-                    ? "Waiting for campaign result"
-                    : "Preparing investigation…"}
+                {working ? "Report pending" : "No campaign report yet"}
               </p>
               <p className="text-muted-foreground text-pretty">
-                Specialists fan out over the fixture (graph, provenance, CI),
-                then compose one scored campaign with policy actions. Follow the
-                transcript below if the structured result is delayed.
+                {working
+                  ? "Investigation in progress — switch to Orchestration or Transcript for live tools."
+                  : "Re-run the investigation or nudge submit_campaign from Transcript."}
               </p>
             </div>
           )}
         </div>
-
-        <div className="border-t">
-          <Transcript messages={agent.messages} status={agent.status} />
+      }
+      resetDefaultSignal={resetDefaultSignal}
+      toolbar={toolbar}
+      transcript={<Transcript messages={agent.messages} status={agent.status} />}
+      transcriptFooter={
+        <div className="border-t px-4 py-3 lg:px-6">
+          <PromptInput className="mx-auto max-w-3xl" onSubmit={handleSubmit}>
+            <PromptInputBody>
+              <PromptInputTextarea
+                disabled={!agent.historyReady || working}
+                placeholder="Ask about the campaign, or nudge submit_campaign…"
+              />
+            </PromptInputBody>
+            <PromptInputFooter>
+              <PromptInputTools />
+              <PromptInputSubmit
+                disabled={stopping || !agent.historyReady}
+                onStop={stop}
+                status={working ? "streaming" : "ready"}
+              />
+            </PromptInputFooter>
+          </PromptInput>
         </div>
-      </div>
-
-      <div className="border-t px-4 py-3 lg:px-6">
-        <PromptInput className="mx-auto max-w-3xl" onSubmit={handleSubmit}>
-          <PromptInputBody>
-            <PromptInputTextarea
-              disabled={!agent.historyReady || working}
-              placeholder="Ask about the campaign, or nudge submit_campaign…"
-            />
-          </PromptInputBody>
-          <PromptInputFooter>
-            <PromptInputTools />
-            <PromptInputSubmit
-              disabled={stopping || !agent.historyReady}
-              onStop={stop}
-              status={working ? "streaming" : "ready"}
-            />
-          </PromptInputFooter>
-        </PromptInput>
-      </div>
-    </div>
+      }
+      working={working}
+    />
   );
 }
 
