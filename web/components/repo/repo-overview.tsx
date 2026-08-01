@@ -12,6 +12,7 @@ import {
   PackageIcon,
   PlayIcon,
   RefreshCwIcon,
+  SquareIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -19,22 +20,26 @@ export function RepoOverview({
   scan,
   scanning,
   scanReady,
+  stopping,
   deps,
   depsState,
   depsChecked,
   caseCount,
   onScan,
+  onStopScan,
   onBuildDeps,
   onNewCase,
 }: {
   scan: ScanResult | null;
   scanning: boolean;
   scanReady: boolean;
+  stopping: boolean;
   deps: DepGraphData | null;
   depsState: "idle" | "running" | "error";
   depsChecked: boolean;
   caseCount: number;
   onScan: () => void;
+  onStopScan: () => void;
   onBuildDeps: () => void;
   onNewCase: () => void;
 }) {
@@ -97,19 +102,31 @@ export function RepoOverview({
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-          <Button
-            className="gap-1.5"
-            disabled={scanning || !scanReady}
-            onClick={onScan}
-            variant={scan ? "outline" : "default"}
-          >
-            {scan ? (
-              <RefreshCwIcon className={cn("size-4", scanning && "animate-spin")} />
-            ) : (
-              <PlayIcon className="size-4" />
-            )}
-            {scanning ? "Scanning…" : scan ? "Rescan" : "Run scan"}
-          </Button>
+          {scanning ? (
+            <Button
+              className="gap-1.5"
+              disabled={stopping}
+              onClick={onStopScan}
+              variant="outline"
+            >
+              <SquareIcon className="size-4" />
+              {stopping ? "Stopping…" : "Stop scan"}
+            </Button>
+          ) : (
+            <Button
+              className="gap-1.5"
+              disabled={!scanReady}
+              onClick={onScan}
+              variant={scan ? "outline" : "default"}
+            >
+              {scan ? (
+                <RefreshCwIcon className="size-4" />
+              ) : (
+                <PlayIcon className="size-4" />
+              )}
+              {scan ? "Rescan" : "Run scan"}
+            </Button>
+          )}
           <Button
             className="gap-1.5"
             disabled={building || !depsChecked}
