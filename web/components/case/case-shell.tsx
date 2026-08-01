@@ -1,11 +1,13 @@
 "use client";
 
+import { CASE_COLUMN, CASE_PAD_X } from "@/components/case/case-panel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   type CaseTab,
   defaultCaseTab,
   isCaseTab,
 } from "@/lib/case-tabs";
+import { cn } from "@/lib/utils";
 import {
   FileTextIcon,
   LayoutDashboardIcon,
@@ -149,8 +151,13 @@ export function CaseShell({
         onValueChange={onTabChange}
         value={tab}
       >
-        <div className="border-b px-4 py-2 lg:px-6">
-          <div className="min-w-0 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className={cn("border-b py-2", CASE_PAD_X)}>
+          <div
+            className={cn(
+              CASE_COLUMN,
+              "min-w-0 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+            )}
+          >
             <TabsList aria-label="Case views">
               <TabsTrigger value="overview">
                 <LayoutDashboardIcon />

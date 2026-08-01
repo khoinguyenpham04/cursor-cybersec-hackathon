@@ -11,7 +11,11 @@ import {
 } from "@/components/ai-elements/prompt-input";
 import { CaseOrchestration } from "@/components/case/case-orchestration";
 import { CaseOverview } from "@/components/case/case-overview";
-import { CASE_CONTENT_WIDTH } from "@/components/case/case-panel";
+import {
+  CASE_COLUMN,
+  CASE_CONTENT_WIDTH,
+  CASE_PAD_X,
+} from "@/components/case/case-panel";
 import { CaseReport, resolveReportPhase } from "@/components/case/case-report";
 import { CaseShell } from "@/components/case/case-shell";
 import { Transcript } from "@/components/review/transcript";
@@ -22,6 +26,7 @@ import {
   safeLedgerCaseId,
 } from "@/lib/campaign-demo";
 import { abortConversation } from "@/lib/flue-abort";
+import { softToolError } from "@/lib/orchestration";
 import { getSession, updateSession, useReviewSessions } from "@/lib/sessions";
 import { cn } from "@/lib/utils";
 import { useFlueAgent } from "@flue/react";
@@ -72,11 +77,10 @@ export function CampaignCaseWorkspace({
         ) {
           investigateDone = true;
         }
-        if (
-          part.toolName === "submit_campaign" &&
-          part.state === "output-error"
-        ) {
-          submitFailed = true;
+        if (part.toolName === "submit_campaign") {
+          if (part.state === "output-error" || softToolError(part)) {
+            submitFailed = true;
+          }
         }
       }
       if (message.settlement?.outcome === "aborted" || message.settlement?.outcome === "failed") {
@@ -182,65 +186,69 @@ export function CampaignCaseWorkspace({
   }
 
   const toolbar = (
-    <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3 lg:px-6">
-      <ShieldAlertIcon className="size-4 text-muted-foreground" />
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-medium text-sm">
-          {session?.headline ??
-            session?.title ??
-            `Campaign · ${ledgerCaseId}`}
-        </p>
-        <p className="truncate text-muted-foreground text-xs">
-          Ledger case {ledgerCaseId} · {owner}/{repo}
-        </p>
-      </div>
-      <span className="flex items-center gap-1.5 text-xs">
-        <span
-          className={cn(
-            "size-2 rounded-full",
-            working && "animate-pulse bg-amber-500",
-            !working && agent.status !== "error" && "bg-emerald-500",
-            agent.status === "error" && "bg-red-500",
-          )}
-        />
-        <span className="text-muted-foreground">
-          {working
-            ? "Investigating"
-            : agent.status === "error"
-              ? "Error"
-              : "Ready"}
+    <div className={cn("border-b py-3", CASE_PAD_X)}>
+      <div className={cn(CASE_COLUMN, "flex flex-wrap items-center gap-2")}>
+        <ShieldAlertIcon className="size-4 text-muted-foreground" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium text-sm">
+            {session?.headline ??
+              session?.title ??
+              `Campaign · ${ledgerCaseId}`}
+          </p>
+          <p className="truncate text-muted-foreground text-xs">
+            Ledger case {ledgerCaseId} · {owner}/{repo}
+          </p>
+        </div>
+        <span className="flex items-center gap-1.5 text-xs">
+          <span
+            className={cn(
+              "size-2 rounded-full",
+              working && "animate-pulse bg-amber-500",
+              !working && agent.status !== "error" && "bg-emerald-500",
+              agent.status === "error" && "bg-red-500",
+            )}
+          />
+          <span className="text-muted-foreground">
+            {working
+              ? "Investigating"
+              : agent.status === "error"
+                ? "Error"
+                : "Ready"}
+          </span>
         </span>
-      </span>
-      {working ? (
-        <Button
-          className="gap-1.5"
-          disabled={stopping}
-          onClick={stop}
-          size="sm"
-          variant="outline"
-        >
-          <SquareIcon className="size-3.5" />
-          {stopping ? "Stopping…" : "Stop"}
-        </Button>
-      ) : (
-        <Button
-          className="gap-1.5"
-          disabled={!canRerun}
-          onClick={rerun}
-          size="sm"
-          variant="outline"
-        >
-          <PlayIcon className="size-3.5" />
-          Re-run
-        </Button>
-      )}
+        {working ? (
+          <Button
+            className="gap-1.5"
+            disabled={stopping}
+            onClick={stop}
+            size="sm"
+            variant="outline"
+          >
+            <SquareIcon className="size-3.5" />
+            {stopping ? "Stopping…" : "Stop"}
+          </Button>
+        ) : (
+          <Button
+            className="gap-1.5"
+            disabled={!canRerun}
+            onClick={rerun}
+            size="sm"
+            variant="outline"
+          >
+            <PlayIcon className="size-3.5" />
+            Re-run
+          </Button>
+        )}
+      </div>
     </div>
   );
 
   const banner =
     agent.error || stopError ? (
-      <div className="border-b bg-destructive/10 px-6 py-2 text-destructive text-sm">
-        {agent.error?.message ?? stopError}
+      <div className={cn("border-b bg-destructive/10 py-2", CASE_PAD_X)}>
+        <p className={cn(CASE_COLUMN, "text-destructive text-sm")}>
+          {agent.error?.message ?? stopError}
+        </p>
       </div>
     ) : null;
 
@@ -282,8 +290,8 @@ export function CampaignCaseWorkspace({
         />
       }
       transcriptFooter={
-        <div className="border-t px-4 py-3 sm:px-6 lg:px-8">
-          <PromptInput className="mx-auto w-full max-w-5xl" onSubmit={handleSubmit}>
+        <div className={cn("border-t py-3", CASE_PAD_X)}>
+          <PromptInput className={CASE_COLUMN} onSubmit={handleSubmit}>
             <PromptInputBody>
               <PromptInputTextarea
                 disabled={!agent.historyReady || working}

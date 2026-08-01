@@ -31,13 +31,52 @@ import { CasePanel } from "@/components/case/case-panel";
 import { Badge } from "@/components/ui/badge";
 import {
   extractOrchestration,
+  softToolError,
   statusLabel,
   type OrchestrationStep,
   type StepStatus,
 } from "@/lib/orchestration";
 import { cn } from "@/lib/utils";
-import type { AgentStatus, FlueConversationMessage } from "@flue/react";
+import type {
+  AgentStatus,
+  FlueConversationMessage,
+  FlueConversationPart,
+} from "@flue/react";
+import { ChevronDownIcon } from "lucide-react";
 import { useMemo } from "react";
+
+type DynamicToolPart = Extract<FlueConversationPart, { type: "dynamic-tool" }>;
+
+function ToolStepOutput({
+  part,
+  open,
+}: {
+  part: DynamicToolPart;
+  open: boolean;
+}) {
+  const soft = softToolError(part);
+  return (
+    <Tool defaultOpen={open}>
+      <ToolHeader
+        state={part.state}
+        toolName={part.toolName}
+        type="dynamic-tool"
+      />
+      <ToolContent>
+        <ToolInput input={part.input} />
+        {part.state === "output-available" && (
+          <ToolOutput
+            errorText={soft}
+            output={soft ? undefined : part.output}
+          />
+        )}
+        {part.state === "output-error" && (
+          <ToolOutput errorText={part.errorText} output={undefined} />
+        )}
+      </ToolContent>
+    </Tool>
+  );
+}
 
 const STATUS_CLASS: Record<StepStatus, string> = {
   pending: "bg-muted text-muted-foreground",
@@ -142,33 +181,16 @@ function StepBlock({
             <Badge className={cn("text-[10px]", STATUS_CLASS[step.status])}>
               {statusLabel(step.status)}
             </Badge>
+            <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
           </div>
         </TaskTrigger>
         <TaskContent className="space-y-3 pt-2">
           {step.detail && <TaskItem>{step.detail}</TaskItem>}
           {step.toolPart && (
-            <Tool defaultOpen={step.status === "running" || step.status === "failed"}>
-              <ToolHeader
-                state={step.toolPart.state}
-                toolName={step.toolPart.toolName}
-                type="dynamic-tool"
-              />
-              <ToolContent>
-                <ToolInput input={step.toolPart.input} />
-                {step.toolPart.state === "output-available" && (
-                  <ToolOutput
-                    errorText={undefined}
-                    output={step.toolPart.output}
-                  />
-                )}
-                {step.toolPart.state === "output-error" && (
-                  <ToolOutput
-                    errorText={step.toolPart.errorText}
-                    output={undefined}
-                  />
-                )}
-              </ToolContent>
-            </Tool>
+            <ToolStepOutput
+              open={step.status === "running" || step.status === "failed"}
+              part={step.toolPart}
+            />
           )}
           {children.map((child, childIndex) =>
             child.kind === "agent" ? (

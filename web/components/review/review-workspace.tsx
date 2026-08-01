@@ -11,7 +11,9 @@ import {
 } from "@/components/ai-elements/prompt-input";
 import { CaseOrchestration } from "@/components/case/case-orchestration";
 import {
+  CASE_COLUMN,
   CASE_CONTENT_WIDTH,
+  CASE_PAD_X,
   CasePanel,
   CasePanelState,
 } from "@/components/case/case-panel";
@@ -268,11 +270,9 @@ export function ReviewWorkspace({
   );
 
   const promptFooter = (
-    <div className="border-t px-4 py-3 lg:px-6">
+    <div className={cn("border-t py-3", embedded ? CASE_PAD_X : "px-4 lg:px-6")}>
       <PromptInput
-        className={
-          embedded ? "mx-auto w-full max-w-5xl" : "mx-auto max-w-3xl"
-        }
+        className={embedded ? CASE_COLUMN : "mx-auto max-w-3xl"}
         onSubmit={handleSubmit}
       >
         <PromptInputBody>
@@ -294,8 +294,10 @@ export function ReviewWorkspace({
       <CaseShell
         banner={
           agent.error ? (
-            <div className="border-b bg-destructive/10 px-6 py-2 text-destructive text-sm">
-              {agent.error.message}
+            <div className={cn("border-b bg-destructive/10 py-2", CASE_PAD_X)}>
+              <p className={cn(CASE_COLUMN, "text-destructive text-sm")}>
+                {agent.error.message}
+              </p>
             </div>
           ) : null
         }
@@ -391,8 +393,10 @@ export function ReviewWorkspace({
           </div>
         }
         toolbar={
-          <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3 lg:px-6">
-            {headerMeta}
+          <div className={cn("border-b py-3", CASE_PAD_X)}>
+            <div className={cn(CASE_COLUMN, "flex flex-wrap items-center gap-2")}>
+              {headerMeta}
+            </div>
           </div>
         }
         transcript={

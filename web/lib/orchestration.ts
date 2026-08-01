@@ -25,6 +25,8 @@ const PIPELINE_TOOLS = [
   "submit_campaign",
 ] as const;
 
+type PipelineToolName = (typeof PIPELINE_TOOLS)[number];
+
 const SPECIALISTS = [
   {
     id: "graph_analyst",
@@ -54,31 +56,46 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function isPipelineTool(name: string): name is PipelineToolName {
+  return (PIPELINE_TOOLS as readonly string[]).includes(name);
+}
+
+/** Soft failures returned as successful tool output with `{ error: string }`. */
+export function softToolError(part: DynamicToolPart): string | undefined {
+  if (part.state !== "output-available") return undefined;
+  if (!("output" in part) || !isRecord(part.output)) return undefined;
+  return typeof part.output.error === "string" ? part.output.error : undefined;
+}
+
 function toolStatus(part: DynamicToolPart): StepStatus {
   if (part.state === "output-error") return "failed";
-  if (part.state === "output-available") return "completed";
+  if (part.state === "output-available") {
+    return softToolError(part) ? "failed" : "completed";
+  }
   // Flue dynamic-tool: input-available means the call is in flight.
   return "running";
 }
 
-function collectTools(
+/** Chronological pipeline tool parts (keeps repeat calls like set_review_context). */
+function collectPipelineParts(
   messages: FlueConversationMessage[],
-): Map<string, DynamicToolPart> {
-  const latest = new Map<string, DynamicToolPart>();
+): DynamicToolPart[] {
+  const parts: DynamicToolPart[] = [];
   for (const message of messages) {
     if (message.role !== "assistant") continue;
     for (const part of message.parts) {
       if (part.type !== "dynamic-tool") continue;
-      latest.set(part.toolName, part);
+      if (!isPipelineTool(part.toolName)) continue;
+      parts.push(part);
     }
   }
-  return latest;
+  return parts;
 }
 
 function coverageFromInvestigate(
   part: DynamicToolPart | undefined,
 ): Record<string, boolean> | null {
-  if (!part || part.state !== "output-available") return null;
+  if (!part || toolStatus(part) !== "completed") return null;
   const output = "output" in part ? part.output : null;
   if (!isRecord(output)) return null;
   const coverage = isRecord(output.coverage) ? output.coverage : null;
@@ -92,6 +109,8 @@ function coverageFromInvestigate(
 
 function investigateDetail(part: DynamicToolPart | undefined): string | undefined {
   if (!part || !("output" in part) || !isRecord(part.output)) return undefined;
+  const soft = softToolError(part);
+  if (soft) return soft;
   const runId = part.output.runId;
   const score = part.output.campaignScore;
   const bits: string[] = [];
@@ -100,27 +119,53 @@ function investigateDetail(part: DynamicToolPart | undefined): string | undefine
   return bits.length ? bits.join(" · ") : undefined;
 }
 
+function contextDetail(part: DynamicToolPart): string | undefined {
+  if (!("input" in part) || !isRecord(part.input)) return undefined;
+  const runId = part.input.runId;
+  const phase = part.input.phase;
+  const bits: string[] = [];
+  if (typeof runId === "string") bits.push(`runId ${runId}`);
+  else bits.push("case only");
+  if (typeof phase === "string") bits.push(phase);
+  const soft = softToolError(part);
+  if (soft) bits.push(soft);
+  return bits.join(" · ");
+}
+
 /** Map Flue messages → orchestration steps. State advances only from tool evidence. */
 export function extractOrchestration(
   messages: FlueConversationMessage[],
   options?: { working?: boolean },
 ): OrchestrationModel {
-  const tools = collectTools(messages);
+  const parts = collectPipelineParts(messages);
   const steps: OrchestrationStep[] = [];
   const working = Boolean(options?.working);
+  const seen = new Set<PipelineToolName>();
+  const nameCounts = new Map<string, number>();
 
-  let sawAnyPipeline = false;
-  for (const name of PIPELINE_TOOLS) {
-    const part = tools.get(name);
-    if (!part) continue;
-    sawAnyPipeline = true;
+  for (const part of parts) {
+    const name = part.toolName as PipelineToolName;
+    seen.add(name);
+    const count = (nameCounts.get(name) ?? 0) + 1;
+    nameCounts.set(name, count);
+    // Unique ids when the same tool runs more than once (set_review_context ×2).
+    const id = count === 1 ? name : `${name}#${count}`;
+
     steps.push({
-      id: name,
-      label: LABELS[name] ?? name,
+      id,
+      label:
+        name === "set_review_context" && count > 1
+          ? `${LABELS[name]} (${count})`
+          : (LABELS[name] ?? name),
       kind: "tool",
       status: toolStatus(part),
       toolPart: part,
-      detail: name === "investigate_case" ? investigateDetail(part) : undefined,
+      detail:
+        name === "investigate_case"
+          ? investigateDetail(part)
+          : name === "set_review_context"
+            ? contextDetail(part)
+            : softToolError(part),
     });
 
     if (name === "investigate_case") {
@@ -131,7 +176,7 @@ export function extractOrchestration(
             id: specialist.id,
             label: specialist.label,
             kind: "agent",
-            parentId: "investigate_case",
+            parentId: id,
             status: coverage[specialist.id] ? "completed" : "failed",
             detail: coverage[specialist.id]
               ? "Coverage verified on ledger"
@@ -143,7 +188,7 @@ export function extractOrchestration(
           id: "fan_out",
           label: "Fan-out (inside investigate_case)",
           kind: "phase",
-          parentId: "investigate_case",
+          parentId: id,
           status: "running",
           detail: "Specialists run in the control-plane harness",
         });
@@ -153,22 +198,19 @@ export function extractOrchestration(
 
   // Pending future stages only after we've seen at least one pipeline tool,
   // or while working with an empty tool list (starting shimmer state).
-  if (sawAnyPipeline || working) {
+  if (seen.size > 0 || working) {
     for (const name of PIPELINE_TOOLS) {
-      if (tools.has(name)) continue;
+      if (seen.has(name)) continue;
       // Don't show pending load/read/set if we've already passed them.
       if (
         (name === "load_fixture_case" ||
           name === "read_case" ||
           name === "set_review_context") &&
-        (tools.has("investigate_case") || tools.has("submit_campaign"))
+        (seen.has("investigate_case") || seen.has("submit_campaign"))
       ) {
         continue;
       }
-      if (
-        name === "investigate_case" &&
-        tools.has("submit_campaign")
-      ) {
+      if (name === "investigate_case" && seen.has("submit_campaign")) {
         continue;
       }
       steps.push({
@@ -180,8 +222,6 @@ export function extractOrchestration(
     }
   }
 
-  // Prefer latest chronological order: evidenced tools already in pipeline
-  // order; pending appended. Keep specialist children after investigate.
   return {
     steps,
     streaming: working,

@@ -55,7 +55,7 @@ function ReasoningPart({
   part: Extract<FlueConversationPart, { type: "reasoning" }>;
 }) {
   return (
-    <Reasoning defaultOpen={false} isStreaming={part.state === "streaming"}>
+    <Reasoning isStreaming={part.state === "streaming"}>
       <ReasoningTrigger />
       <ReasoningContent>{part.text}</ReasoningContent>
     </Reasoning>
