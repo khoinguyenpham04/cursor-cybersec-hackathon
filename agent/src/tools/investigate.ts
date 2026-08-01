@@ -11,6 +11,7 @@ import {
 	type CampaignDraft,
 	type FanOutResult,
 } from '../lib/investigation-schema.ts';
+import { MODAL_KIMI_MODEL } from '../lib/modal-provider.ts';
 import {
 	getCase,
 	listClaims,
@@ -73,7 +74,7 @@ export const investigateCase = defineTool({
 		const fanOut = await step.do('fan_out', async (): Promise<FanOutResult> => {
 			const response = await harness.prompt(buildFanOutPrompt(data.caseId, runId), {
 				result: fanOutResultSchema,
-				model: process.env.CAMPAIGN_DISPATCH_MODEL || 'anthropic/claude-sonnet-4-6',
+				model: process.env.CAMPAIGN_DISPATCH_MODEL || MODAL_KIMI_MODEL,
 			});
 			return response.data;
 		});
@@ -127,7 +128,7 @@ export const investigateCase = defineTool({
 				buildComposePrompt(data.caseId, runId, coverage.claimIds),
 				{
 					result: campaignDraftSchema,
-					model: process.env.CAMPAIGN_DISPATCH_MODEL || 'anthropic/claude-sonnet-4-6',
+					model: process.env.CAMPAIGN_DISPATCH_MODEL || MODAL_KIMI_MODEL,
 				},
 			);
 			return response.data;

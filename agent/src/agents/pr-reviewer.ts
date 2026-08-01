@@ -1,5 +1,6 @@
 'use agent';
 import { useModel, useSkill, useTool } from '@flue/runtime';
+import { MODAL_KIMI_MODEL } from '../lib/modal-provider.ts';
 import adversarialReviewer from '../skills/adversarial-reviewer/SKILL.md';
 import { checkVulns, depGraph, packageProvenance } from '../tools/deps.ts';
 import { fetchFile, fetchPr, fetchPrDiff } from '../tools/github.ts';
@@ -10,9 +11,8 @@ import { submitReview } from '../tools/review.ts';
 // fetched PR context. The review protocol itself (mindset, checklist, output
 // format, severities) lives in the adversarial-reviewer skill.
 export function PrReviewer() {
-	// Any Pi 'provider/model-id' works, e.g. google/gemini-3.5-flash for cheap
-	// plumbing tests ('||' so an empty env entry falls through to the default).
-	useModel(process.env.PR_REVIEWER_MODEL || 'anthropic/claude-opus-5');
+	// Default: Modal-hosted Kimi K3. Override with PR_REVIEWER_MODEL.
+	useModel(process.env.PR_REVIEWER_MODEL || MODAL_KIMI_MODEL);
 	useTool(fetchPr);
 	useTool(fetchPrDiff);
 	useTool(fetchFile);

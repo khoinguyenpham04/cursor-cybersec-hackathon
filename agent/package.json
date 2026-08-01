@@ -10,6 +10,7 @@
 		"eval:fixture": "node --experimental-strip-types src/ledger/eval-fixture.ts"
 	},
 	"dependencies": {
+		"@earendil-works/pi-ai": "^0.83.0",
 		"@flue/runtime": "^2.0.0",
 		"hono": "^4.7.0",
 		"valibot": "^1.4.2"

@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { CampaignOrchestrator } from './agents/campaign-orchestrator.ts';
 import { PrReviewer } from './agents/pr-reviewer.ts';
 import { RepoScanner } from './agents/repo-scanner.ts';
+import './lib/modal-provider.ts';
 
 const app = new Hono();
 

@@ -1,4 +1,5 @@
 import { defineSubagent, useSkill, useTool } from '@flue/runtime';
+import { MODAL_KIMI_MODEL } from '../lib/modal-provider.ts';
 import graphAnalystSkill from '../skills/graph-analyst/SKILL.md';
 import { listCaseDeltas, readCase, writeClaimGraphAnalyst } from '../tools/ledger.ts';
 
@@ -17,5 +18,5 @@ export const graphAnalyst = defineSubagent({
 	description:
 		'Analyzes dependency graph deltas and blast radius from the ledger (transitive edges, install scripts, sensitive path contact).',
 	agent: GraphAnalyst,
-	model: 'anthropic/claude-sonnet-4-6',
+	model: MODAL_KIMI_MODEL,
 });

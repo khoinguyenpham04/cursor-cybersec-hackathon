@@ -1,4 +1,5 @@
 .DS_Store
+.venv-modal/
 agent/data/ledger/
 agent/data/flue.db
 agent/node_modules/

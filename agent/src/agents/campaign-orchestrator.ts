@@ -1,6 +1,7 @@
 'use agent';
 import { useModel, usePersistentState, useSkill, useSubagent, useTool } from '@flue/runtime';
 import * as v from 'valibot';
+import { MODAL_KIMI_MODEL } from '../lib/modal-provider.ts';
 import campaignOrchestratorSkill from '../skills/campaign-orchestrator/SKILL.md';
 import { campaignComposer } from '../subagents/campaign-composer.ts';
 import { ciAuditor } from '../subagents/ci-auditor.ts';
@@ -16,7 +17,7 @@ type Phase = 'loading' | 'investigating' | 'composing' | 'submitted';
 // Draft fields are server-loaded from the InvestigationPacket; specialists stay
 // mounted so the investigate harness can task them.
 export function CampaignOrchestrator() {
-	useModel(process.env.CAMPAIGN_ORCHESTRATOR_MODEL || 'anthropic/claude-opus-5');
+	useModel(process.env.CAMPAIGN_ORCHESTRATOR_MODEL || MODAL_KIMI_MODEL);
 
 	const [phase, setPhase] = usePersistentState<Phase>('phase', 'loading');
 	const [caseId, setCaseId] = usePersistentState<string | null>('caseId', null);

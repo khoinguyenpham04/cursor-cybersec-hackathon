@@ -1,5 +1,6 @@
 'use agent';
 import { useModel, useSkill, useTool } from '@flue/runtime';
+import { MODAL_KIMI_MODEL } from '../lib/modal-provider.ts';
 import repoScanner from '../skills/repo-scanner/SKILL.md';
 import { ingestRepoTool, readRepoFileTool, repoTree, searchRepo } from '../tools/repo.ts';
 import { submitScan } from '../tools/scan.ts';
@@ -8,12 +9,11 @@ import { submitScan } from '../tools/scan.ts';
 // and delivers a foglamp-style architecture map via submit_scan. The scan
 // protocol (taxonomy, caps, grouping rules) lives in the repo-scanner skill.
 export function RepoScanner() {
-	// Any Pi 'provider/model-id' works; falls back to the reviewer's model so
-	// one env var can drive both agents ('||' skips empty env values).
+	// Default Modal Kimi; REPO_SCANNER_MODEL then PR_REVIEWER_MODEL can override.
 	useModel(
 		process.env.REPO_SCANNER_MODEL ||
 			process.env.PR_REVIEWER_MODEL ||
-			'anthropic/claude-opus-5',
+			MODAL_KIMI_MODEL,
 	);
 	useTool(ingestRepoTool);
 	useTool(repoTree);

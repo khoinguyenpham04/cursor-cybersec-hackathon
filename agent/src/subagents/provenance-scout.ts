@@ -1,4 +1,5 @@
 import { defineSubagent, useSkill, useTool } from '@flue/runtime';
+import { MODAL_KIMI_MODEL } from '../lib/modal-provider.ts';
 import provenanceScoutSkill from '../skills/provenance-scout/SKILL.md';
 import { listCaseDeltas, readCase, writeClaimProvenanceScout } from '../tools/ledger.ts';
 
@@ -17,5 +18,5 @@ export const provenanceScout = defineSubagent({
 	description:
 		'Weighs package provenance signals already on the ledger (maintainers, first release, dormancy, publish gaps).',
 	agent: ProvenanceScout,
-	model: 'anthropic/claude-sonnet-4-6',
+	model: MODAL_KIMI_MODEL,
 });

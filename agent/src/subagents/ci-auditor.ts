@@ -1,4 +1,5 @@
 import { defineSubagent, useSkill, useTool } from '@flue/runtime';
+import { MODAL_KIMI_MODEL } from '../lib/modal-provider.ts';
 import ciAuditorSkill from '../skills/ci-auditor/SKILL.md';
 import { listCaseDeltas, readCase, writeClaimCiAuditor } from '../tools/ledger.ts';
 
@@ -17,5 +18,5 @@ export const ciAuditor = defineSubagent({
 	description:
 		'Audits GitHub Actions / workflow permission and secret-surface capability deltas across the PR timeline.',
 	agent: CiAuditor,
-	model: 'anthropic/claude-sonnet-4-6',
+	model: MODAL_KIMI_MODEL,
 });
