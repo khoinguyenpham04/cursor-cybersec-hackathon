@@ -1,6 +1,7 @@
 'use agent';
 import { useModel, useSkill, useTool } from '@flue/runtime';
 import adversarialReviewer from '../skills/adversarial-reviewer/SKILL.md';
+import { checkVulns, depGraph, packageProvenance } from '../tools/deps.ts';
 import { fetchFile, fetchPr, fetchPrDiff } from '../tools/github.ts';
 import { submitReview } from '../tools/review.ts';
 
@@ -15,6 +16,9 @@ export function PrReviewer() {
 	useTool(fetchPr);
 	useTool(fetchPrDiff);
 	useTool(fetchFile);
+	useTool(depGraph);
+	useTool(checkVulns);
+	useTool(packageProvenance);
 	useTool(submitReview);
 	useSkill(adversarialReviewer);
 
@@ -23,6 +27,7 @@ export function PrReviewer() {
 ## Workflow
 1. Call fetch_pr for the metadata, then fetch_pr_diff for the changed files.
 2. When a diff hunk is ambiguous without context (callers, types, surrounding logic), call fetch_file for the full file before judging it. Prefer a few targeted fetch_file calls over guessing.
+2b. When the PR touches a manifest or lockfile (package.json, package-lock.json, etc.), treat every added or version-changed package as a suspect: check_vulns on the exact versions, package_provenance for behavioural red flags (dormancy gaps, maintainer changes), and dep_graph when the footprint matters. A malicious or vulnerable dependency is a finding like any other.
 3. Activate the adversarial-reviewer skill and review exactly per its protocol — its mindset, checklist, and severity guide define the review.
 4. Deliver the review by calling submit_review exactly once: verdict, markdown summary, and one finding per bug (the skill's per-bug fields map to the tool's title/category/severity/body/trigger/fix). Do NOT write the review as chat text — after submit_review succeeds, reply with at most one short closing sentence.
 
