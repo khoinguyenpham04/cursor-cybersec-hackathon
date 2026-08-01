@@ -10,7 +10,11 @@ import {
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
 import { CaseOrchestration } from "@/components/case/case-orchestration";
-import { CasePanel, CasePanelState } from "@/components/case/case-panel";
+import {
+  CASE_CONTENT_WIDTH,
+  CasePanel,
+  CasePanelState,
+} from "@/components/case/case-panel";
 import { CaseShell } from "@/components/case/case-shell";
 import { DiffViewer, type FindingAnchor } from "@/components/review/diff-viewer";
 import {
@@ -266,7 +270,9 @@ export function ReviewWorkspace({
   const promptFooter = (
     <div className="border-t px-4 py-3 lg:px-6">
       <PromptInput
-        className={embedded ? "mx-auto max-w-2xl" : "mx-auto max-w-3xl"}
+        className={
+          embedded ? "mx-auto w-full max-w-5xl" : "mx-auto max-w-3xl"
+        }
         onSubmit={handleSubmit}
       >
         <PromptInputBody>
@@ -391,7 +397,7 @@ export function ReviewWorkspace({
         }
         transcript={
           <Transcript
-            contentClassName="mx-auto w-full max-w-2xl px-4 py-6 lg:px-6"
+            contentClassName={CASE_CONTENT_WIDTH}
             messages={agent.messages}
             onJumpToFinding={jumpToFinding}
             status={agent.status}

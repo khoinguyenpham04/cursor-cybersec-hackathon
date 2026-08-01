@@ -11,6 +11,7 @@ import {
 } from "@/components/ai-elements/prompt-input";
 import { CaseOrchestration } from "@/components/case/case-orchestration";
 import { CaseOverview } from "@/components/case/case-overview";
+import { CASE_CONTENT_WIDTH } from "@/components/case/case-panel";
 import { CaseReport, resolveReportPhase } from "@/components/case/case-report";
 import { CaseShell } from "@/components/case/case-shell";
 import { Transcript } from "@/components/review/transcript";
@@ -274,15 +275,15 @@ export function CampaignCaseWorkspace({
       toolbar={toolbar}
       transcript={
         <Transcript
-          contentClassName="mx-auto w-full max-w-2xl px-4 py-6 lg:px-6"
+          contentClassName={CASE_CONTENT_WIDTH}
           messages={agent.messages}
           status={agent.status}
           waitingLabel="Investigating the campaign…"
         />
       }
       transcriptFooter={
-        <div className="border-t px-4 py-3 lg:px-6">
-          <PromptInput className="mx-auto max-w-2xl" onSubmit={handleSubmit}>
+        <div className="border-t px-4 py-3 sm:px-6 lg:px-8">
+          <PromptInput className="mx-auto w-full max-w-5xl" onSubmit={handleSubmit}>
             <PromptInputBody>
               <PromptInputTextarea
                 disabled={!agent.historyReady || working}

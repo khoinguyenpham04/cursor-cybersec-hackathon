@@ -128,7 +128,7 @@ export function Transcript({
   status: AgentStatus;
   onJumpToFinding?: (finding: ReviewFinding) => void;
   waitingLabel?: string;
-  /** Override the conversation column width/padding (case tabs use max-w-2xl). */
+  /** Override the conversation column width/padding (case tabs share CasePanel width). */
   contentClassName?: string;
 }) {
   const visible = messages.filter(
