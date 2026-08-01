@@ -1,5 +1,6 @@
 import { createAgentRouter } from '@flue/runtime/routing';
 import { Hono } from 'hono';
+import { CampaignOrchestrator } from './agents/campaign-orchestrator.ts';
 import { PrReviewer } from './agents/pr-reviewer.ts';
 import { RepoScanner } from './agents/repo-scanner.ts';
 
@@ -11,9 +12,15 @@ const app = new Hono();
 //     -H 'content-type: application/json' \
 //     -d '{"kind":"user","body":"Review https://github.com/owner/repo/pull/123"}'
 //
+// Campaign path (supply-chain composition):
+//   curl -X POST http://localhost:5173/agents/campaign-orchestrator/demo-1 \
+//     -H 'content-type: application/json' \
+//     -d '{"kind":"user","body":"Review fixture-boiling-frog"}'
+//
 // The Next.js app in ../web proxies /api/agents/* here, so the browser client
 // stays same-origin and no CORS setup is needed.
 app.route('/agents/pr-reviewer', createAgentRouter(PrReviewer));
+app.route('/agents/campaign-orchestrator', createAgentRouter(CampaignOrchestrator));
 
 // One conversation per repository (id convention: scan-{owner}--{repo}), so
 // a scan is durable: revisiting the repo replays the map for free and
