@@ -19,23 +19,27 @@ import {
   DepGraphCanvas,
   type DepGraphData,
 } from "@/components/repo/dep-graph-canvas";
+import { RepoCases } from "@/components/repo/repo-cases";
 import { RepoMapCanvas } from "@/components/repo/repo-map-canvas";
 import { RepoOverview } from "@/components/repo/repo-overview";
-import { NewReviewForm } from "@/components/review/new-review-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  campaignCasePath,
+  createCampaignDemoSession,
+} from "@/lib/campaign-demo";
 import { extractScan } from "@/lib/scan";
 import { updateRepo } from "@/lib/repos";
-import { useReviewSessions } from "@/lib/sessions";
+import { filterRepoSessions, useReviewSessions } from "@/lib/sessions";
 import { cn } from "@/lib/utils";
 import { useFlueAgent } from "@flue/react";
 import { createFlueClient } from "@flue/sdk";
 import {
   ExternalLinkIcon,
-  GitPullRequestIcon,
+  FolderKanbanIcon,
   LayoutDashboardIcon,
   MapIcon,
   PackageIcon,
@@ -43,7 +47,7 @@ import {
   RefreshCwIcon,
   SquareIcon,
 } from "lucide-react";
-import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /** Big jobs run only when the user presses a button — never on mount. */
@@ -60,12 +64,18 @@ function timeAgo(timestamp: number): string {
 }
 
 export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) {
+  const router = useRouter();
   const repoRef = `${owner}/${repo}`;
   // One durable conversation per repo: the map replays for free on revisit.
   const conversationId = `scan-${owner}--${repo}`;
   const agentUrl = `/api/agents/repo-scanner/${conversationId}`;
   const client = useMemo(() => createFlueClient({ url: agentUrl }), [agentUrl]);
   const agent = useFlueAgent({ client });
+
+  const startCampaignDemo = useCallback(() => {
+    const session = createCampaignDemoSession(owner, repo);
+    router.push(campaignCasePath(owner, repo, session.id));
+  }, [owner, repo, router]);
 
   const scan = useMemo(() => extractScan(agent.messages), [agent.messages]);
   const scanning = agent.status === "submitted" || agent.status === "streaming";
@@ -149,13 +159,35 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
       .finally(() => setDepsChecked(true));
   }, [repoRef]);
 
-  // --- Reviews -------------------------------------------------------------
+  // --- Cases ---------------------------------------------------------------
   const sessions = useReviewSessions();
-  const repoSessions = sessions.filter((session) =>
-    session.pr.includes(`${owner}/${repo}`),
+  const repoSessions = useMemo(
+    () => filterRepoSessions(sessions, owner, repo),
+    [sessions, owner, repo],
   );
 
-  const [tab, setTab] = useState("overview");
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab");
+  const [tab, setTab] = useState(
+    initialTab === "cases" ||
+      initialTab === "map" ||
+      initialTab === "deps" ||
+      initialTab === "overview"
+      ? initialTab
+      : "overview",
+  );
+
+  useEffect(() => {
+    const next = searchParams.get("tab");
+    if (
+      next === "cases" ||
+      next === "map" ||
+      next === "deps" ||
+      next === "overview"
+    ) {
+      setTab(next);
+    }
+  }, [searchParams]);
 
   const runScanFromOverview = useCallback(() => {
     startScan(Boolean(scan));
@@ -281,9 +313,9 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="reviews">
-                <GitPullRequestIcon />
-                <span className="sr-only sm:not-sr-only">Reviews</span>
+              <TabsTrigger value="cases">
+                <FolderKanbanIcon />
+                <span className="sr-only sm:not-sr-only">Cases</span>
                 {repoSessions.length > 0 && (
                   <Badge className="text-[10px]" variant="secondary">
                     {repoSessions.length}
@@ -356,7 +388,8 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
             depsChecked={depsChecked}
             depsState={depsState}
             onBuildDeps={buildDepsFromOverview}
-            onNewCase={() => setTab("reviews")}
+            onInvestigateSequence={startCampaignDemo}
+            onNewCase={() => setTab("cases")}
             onScan={runScanFromOverview}
             onStopScan={stopScan}
             scan={scan}
@@ -523,36 +556,9 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
           )}
         </TabsContent>
 
-        {/* -------------------------------------------------------------- Reviews */}
-        <TabsContent className="min-h-0 flex-1 overflow-y-auto" value="reviews">
-          {repoSessions.length > 0 ? (
-            <div className="mx-auto flex w-full max-w-2xl flex-col gap-2 p-6">
-              {repoSessions.map((session) => (
-                <Link
-                  className="flex items-center gap-3 rounded-lg border px-4 py-3 hover:bg-accent"
-                  href={`/review/${session.id}`}
-                  key={session.id}
-                >
-                  <GitPullRequestIcon className="size-4 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-sm">
-                      {session.prTitle ?? session.title}
-                    </p>
-                    <p className="text-muted-foreground text-xs">
-                      {session.title} · {timeAgo(session.createdAt)}
-                    </p>
-                  </div>
-                  {session.verdict && (
-                    <Badge className="text-[10px]" variant="outline">
-                      {session.verdict.replace("_", " ")}
-                    </Badge>
-                  )}
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <NewReviewForm />
-          )}
+        {/* ---------------------------------------------------------------- Cases */}
+        <TabsContent className="flex min-h-0 flex-1 flex-col" value="cases">
+          <RepoCases owner={owner} repo={repo} />
         </TabsContent>
       </Tabs>
     </div>

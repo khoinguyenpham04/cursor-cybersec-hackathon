@@ -12,6 +12,7 @@ import {
   PackageIcon,
   PlayIcon,
   RefreshCwIcon,
+  ShieldAlertIcon,
   SquareIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -29,6 +30,7 @@ export function RepoOverview({
   onStopScan,
   onBuildDeps,
   onNewCase,
+  onInvestigateSequence,
 }: {
   scan: ScanResult | null;
   scanning: boolean;
@@ -42,24 +44,25 @@ export function RepoOverview({
   onStopScan: () => void;
   onBuildDeps: () => void;
   onNewCase: () => void;
+  onInvestigateSequence: () => void;
 }) {
   const building = depsState === "running";
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 p-6 lg:p-8">
-        <div className="space-y-1.5">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 p-4 sm:p-6 lg:p-8">
+        <div className="min-w-0 space-y-1.5">
           <div className="flex items-center gap-2">
-            <LayoutDashboardIcon className="size-4 text-muted-foreground" />
+            <LayoutDashboardIcon className="size-4 shrink-0 text-muted-foreground" />
             <h2 className="font-semibold text-lg">Overview</h2>
           </div>
-          <p className="text-muted-foreground text-sm">
-            Status for this repository. Open Map, Dependencies, or Reviews for
-            the full views.
+          <p className="text-muted-foreground text-sm text-pretty">
+            Detect campaign-shaped supply-chain risk across a PR sequence — or
+            open Map, Dependencies, and Cases for the supporting views.
           </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 min-[480px]:grid-cols-2 md:grid-cols-3">
           <StatusCard
             detail={
               scan
@@ -83,16 +86,22 @@ export function RepoOverview({
             ready={Boolean(deps)}
             trailing={
               deps && deps.totals.vulnerable > 0 ? (
-                <Badge className="border border-red-500/30 bg-red-500/15 text-[10px] text-red-600 dark:text-red-400">
-                  {deps.totals.vulnerable} vulnerable
+                <Badge
+                  aria-label={`${deps.totals.vulnerable} vulnerable`}
+                  className="max-w-full shrink border border-red-500/30 bg-red-500/15 text-[10px] text-red-600 dark:text-red-400"
+                >
+                  <span className="truncate">
+                    {deps.totals.vulnerable} vulnerable
+                  </span>
                 </Badge>
               ) : null
             }
           />
           <StatusCard
+            className="min-[480px]:col-span-2 md:col-span-1"
             detail={
               caseCount > 0
-                ? `${caseCount} review${caseCount === 1 ? "" : "s"}`
+                ? `${caseCount} case${caseCount === 1 ? "" : "s"}`
                 : "No cases yet"
             }
             icon={<GitPullRequestIcon className="size-4" />}
@@ -102,9 +111,16 @@ export function RepoOverview({
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <Button
+            className="w-full gap-1.5 sm:w-auto"
+            onClick={onInvestigateSequence}
+          >
+            <ShieldAlertIcon className="size-4" />
+            Investigate sequence
+          </Button>
           {scanning ? (
             <Button
-              className="gap-1.5"
+              className="w-full gap-1.5 sm:w-auto"
               disabled={stopping}
               onClick={onStopScan}
               variant="outline"
@@ -114,10 +130,10 @@ export function RepoOverview({
             </Button>
           ) : (
             <Button
-              className="gap-1.5"
+              className="w-full gap-1.5 sm:w-auto"
               disabled={!scanReady}
               onClick={onScan}
-              variant={scan ? "outline" : "default"}
+              variant="outline"
             >
               {scan ? (
                 <RefreshCwIcon className="size-4" />
@@ -128,10 +144,10 @@ export function RepoOverview({
             </Button>
           )}
           <Button
-            className="gap-1.5"
+            className="w-full gap-1.5 sm:w-auto"
             disabled={building || !depsChecked}
             onClick={onBuildDeps}
-            variant={deps ? "outline" : "default"}
+            variant="outline"
           >
             {deps ? (
               <RefreshCwIcon className={cn("size-4", building && "animate-spin")} />
@@ -142,7 +158,11 @@ export function RepoOverview({
             )}
             {building ? "Building…" : deps ? "Rebuild graph" : "Build graph"}
           </Button>
-          <Button className="gap-1.5" onClick={onNewCase} variant="outline">
+          <Button
+            className="w-full gap-1.5 sm:w-auto"
+            onClick={onNewCase}
+            variant="outline"
+          >
             <GitPullRequestIcon className="size-4" />
             New case
           </Button>
@@ -158,28 +178,37 @@ function StatusCard({
   icon,
   ready,
   trailing,
+  className,
 }: {
   label: string;
   detail: string;
   icon: ReactNode;
   ready: boolean;
   trailing?: ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="flex flex-col gap-2 rounded-lg border px-4 py-3">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        {icon}
-        <span className="font-medium text-foreground text-sm">{label}</span>
-        {trailing}
+    <div
+      className={cn(
+        "flex min-w-0 flex-col gap-2 overflow-hidden rounded-lg border px-4 py-3",
+        className,
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-2 text-muted-foreground">
+        <span className="shrink-0">{icon}</span>
+        <span className="min-w-0 truncate font-medium text-foreground text-sm">
+          {label}
+        </span>
       </div>
       <p
         className={cn(
-          "text-sm",
+          "min-w-0 text-sm text-pretty break-words",
           ready ? "text-foreground" : "text-muted-foreground",
         )}
       >
         {detail}
       </p>
+      {trailing ? <div className="min-w-0">{trailing}</div> : null}
     </div>
   );
 }

@@ -47,7 +47,15 @@ interface PrData {
   files: PrFile[];
 }
 
-export function ReviewWorkspace({ sessionId }: { sessionId: string }) {
+export function ReviewWorkspace({
+  sessionId,
+  variant = "page",
+}: {
+  sessionId: string;
+  /** Nested under a repo case route: hide the duplicate sidebar trigger. */
+  variant?: "page" | "embedded";
+}) {
+  const embedded = variant === "embedded";
   // Demo sessions replay a scripted review through the mock driver; the real
   // hook stays dormant (no url) so nothing hits the Flue server.
   const isMock = isMockSessionId(sessionId);
@@ -74,11 +82,16 @@ export function ReviewWorkspace({ sessionId }: { sessionId: string }) {
       if (ref) {
         const recovered = formatPrRef(ref);
         setPr(recovered);
+        const existing = getSession(sessionId);
         saveSession({
           id: sessionId,
+          kind: existing?.kind ?? "review",
           pr: recovered,
           title: recovered,
-          createdAt: Date.now(),
+          createdAt: existing?.createdAt ?? Date.now(),
+          repo: existing?.repo,
+          prTitle: existing?.prTitle,
+          verdict: existing?.verdict,
         });
         break;
       }
@@ -165,11 +178,15 @@ export function ReviewWorkspace({ sessionId }: { sessionId: string }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex items-center gap-3 border-b px-4 py-3 lg:px-6">
-        <SidebarTrigger className="-ml-1" />
-        <Separator
-          className="h-4 data-vertical:self-auto"
-          orientation="vertical"
-        />
+        {!embedded && (
+          <>
+            <SidebarTrigger className="-ml-1" />
+            <Separator
+              className="h-4 data-vertical:self-auto"
+              orientation="vertical"
+            />
+          </>
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h1 className="truncate font-semibold text-sm">{title}</h1>

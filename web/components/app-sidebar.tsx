@@ -29,7 +29,12 @@ import {
 import { parsePrRef } from "@/lib/pr"
 import { removeRepo, useRepos } from "@/lib/repos"
 import type { ReviewVerdict } from "@/lib/review"
-import { removeSession, useReviewSessions } from "@/lib/sessions"
+import {
+  caseKind,
+  casePath,
+  removeSession,
+  useReviewSessions,
+} from "@/lib/sessions"
 import { cn } from "@/lib/utils"
 import {
   ArrowSquareOutIcon,
@@ -64,10 +69,15 @@ const navSecondary = [
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const sessions = useReviewSessions()
   const repos = useRepos()
-  const params = useParams<{ id?: string; owner?: string; repo?: string }>()
+  const params = useParams<{
+    id?: string
+    owner?: string
+    repo?: string
+    caseId?: string
+  }>()
   const router = useRouter()
   const { isMobile } = useSidebar()
-  const activeId = params?.id
+  const activeId = params?.caseId ?? params?.id
   const activeRepo =
     params?.owner && params?.repo ? `${params.owner}/${params.repo}` : undefined
 
@@ -177,15 +187,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarGroup>
 
         <SidebarGroup className="group-data-[collapsible=icon]:hidden">
-          <SidebarGroupLabel>Recent reviews</SidebarGroupLabel>
+          <SidebarGroupLabel>Recent cases</SidebarGroupLabel>
           <SidebarMenu>
             {sessions.length === 0 && (
               <p className="px-2 py-1.5 text-muted-foreground text-xs">
-                No reviews yet. Paste a PR link to start one.
+                No cases yet. Open a repo to start a review or campaign.
               </p>
             )}
             {sessions.map((session) => {
-              const ref = parsePrRef(session.pr)
+              const href = casePath(session)
+              const kind = caseKind(session)
+              const ref = session.pr ? parsePrRef(session.pr) : null
               const githubUrl = ref
                 ? `https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`
                 : null
@@ -193,14 +205,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 <SidebarMenuItem key={session.id}>
                   <SidebarMenuButton
                     isActive={session.id === activeId}
-                    render={<Link href={`/review/${session.id}`} />}
-                    title={session.prTitle ?? session.title}
+                    render={<Link href={href} />}
+                    title={session.headline ?? session.prTitle ?? session.title}
                   >
                     <GitPullRequestIcon />
                     <span className="truncate">
-                      {session.prTitle ?? session.title}
+                      {session.headline ?? session.prTitle ?? session.title}
                     </span>
-                    {session.verdict && (
+                    {kind === "review" && session.verdict && (
                       <span
                         aria-label={verdictDot[session.verdict].label}
                         className={cn(
@@ -230,7 +242,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       align={isMobile ? "end" : "start"}
                     >
                       <DropdownMenuItem
-                        render={<Link href={`/review/${session.id}`} />}
+                        render={<Link href={href} />}
                       >
                         <GitPullRequestIcon />
                         <span>Open</span>

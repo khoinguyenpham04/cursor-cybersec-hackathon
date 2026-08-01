@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { MOCK_PR_REF, newMockSessionId } from "@/lib/mock-review";
 import { formatPrRef, parsePrRef } from "@/lib/pr";
 import { saveRepo, SELF_REPO } from "@/lib/repos";
-import { newSessionId, saveSession } from "@/lib/sessions";
+import { casePath, newSessionId, saveSession } from "@/lib/sessions";
 import {
   ArrowRightIcon,
   BinaryIcon,
@@ -48,6 +48,7 @@ export function NewRepoForm() {
     if (pr) {
       const session = {
         id: newSessionId(),
+        kind: "review" as const,
         pr: trimmed,
         title: formatPrRef(pr),
         createdAt: Date.now(),
@@ -55,7 +56,7 @@ export function NewRepoForm() {
       };
       saveSession(session);
       saveRepo(pr.owner, pr.repo);
-      router.push(`/review/${session.id}`);
+      router.push(casePath(session));
       return;
     }
 
@@ -79,12 +80,13 @@ export function NewRepoForm() {
   function startDemoReview() {
     const session = {
       id: newMockSessionId(),
+      kind: "review" as const,
       pr: MOCK_PR_REF,
       title: `Demo · ${MOCK_PR_REF}`,
       createdAt: Date.now(),
     };
     saveSession(session);
-    router.push(`/review/${session.id}`);
+    router.push(casePath(session));
   }
 
   return (

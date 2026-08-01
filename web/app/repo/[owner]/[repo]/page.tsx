@@ -1,5 +1,6 @@
-import { AppShell } from "@/components/review/app-shell";
 import { RepoWorkspace } from "@/components/repo/repo-workspace";
+import { AppShell } from "@/components/review/app-shell";
+import { Suspense } from "react";
 
 export default async function RepoPage({
   params,
@@ -9,7 +10,15 @@ export default async function RepoPage({
   const { owner, repo } = await params;
   return (
     <AppShell>
-      <RepoWorkspace owner={owner} repo={repo} />
+      <Suspense
+        fallback={
+          <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm">
+            Loading workspace…
+          </div>
+        }
+      >
+        <RepoWorkspace owner={owner} repo={repo} />
+      </Suspense>
     </AppShell>
   );
 }
