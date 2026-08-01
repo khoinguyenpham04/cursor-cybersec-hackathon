@@ -34,7 +34,8 @@ All code lives under `demo/payments-api/` (local `file:` packages only — nothi
 
 **Stack:** #9 → #8 → `main`, #10 → #9, #11 → #10.
 
-Mirrors ledger fixture: `agent/src/ledger/fixtures/boiling-frog.json` (`fixture-boiling-frog`).
+Product-repo ledger case: `agent/src/ledger/fixtures/demo-self-repo-8-11.json`
+(`demo-self-repo-8-11`). Classic offline twin: `fixture-boiling-frog` (412→419→430).
 
 ---
 
@@ -63,7 +64,7 @@ Open http://localhost:3000
 | Live review of #8–#11 | yes | recommended |
 | Repo scan (Map) | yes | recommended |
 | Dependencies graph | no | recommended |
-| Investigate sequence | yes | no (uses fixture) |
+| Investigate sequence | yes | no (seeded `demo-self-repo-8-11`) |
 
 ---
 
@@ -79,7 +80,7 @@ Open http://localhost:3000
 
 ### Beat 2 — Review one green PR
 
-1. Cases → boiling-frog sequence → open **#9 · start here** (transitive postinstall).
+1. Cases → Product sequence (#8–#11) → open **#9 · start here** (transitive postinstall).
 2. Optional deep dive: #8 / #10 / #11 from the same list (or GitHub tabs).
 
 **Say:** “Alone it looks fine. The risk is the trail.”

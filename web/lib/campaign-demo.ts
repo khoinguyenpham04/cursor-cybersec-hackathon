@@ -4,6 +4,7 @@ import {
   filterRepoSessions,
   listSessions,
   newCampaignSessionId,
+  removeSession,
   saveSession,
   type ReviewSession,
 } from "@/lib/sessions";
@@ -37,6 +38,23 @@ export function ledgerCaseIdForRepo(owner: string, repo: string): string {
     return SELF_REPO_LEDGER_CASE;
   }
   return DEMO_LEDGER_CASE;
+}
+
+/** Resolve stored case id with repo-aware default (never invent classic on SELF_REPO). */
+export function resolveLedgerCaseId(
+  owner: string,
+  repo: string,
+  stored?: string | null,
+): string {
+  const preferred = ledgerCaseIdForRepo(owner, repo);
+  if (stored && isValidLedgerCaseId(stored)) {
+    // Pre-bind rehearsals left classic id on the product repo — treat as preferred.
+    if (preferred === SELF_REPO_LEDGER_CASE && stored === DEMO_LEDGER_CASE) {
+      return preferred;
+    }
+    return stored;
+  }
+  return preferred;
 }
 
 /** Kickoff text the CampaignOrchestrator skill recognizes. */
@@ -98,10 +116,22 @@ export function ensureCampaignDemoSession(
   const safe = safeLedgerCaseId(
     ledgerCaseId ?? ledgerCaseIdForRepo(owner, repo),
   );
-  return (
-    findOpenCampaignDemo(listSessions(), owner, repo, safe) ??
-    createCampaignDemoSession(owner, repo, safe)
-  );
+  const existing = findOpenCampaignDemo(listSessions(), owner, repo, safe);
+  if (existing) return existing;
+
+  // Drop stale classic campaigns on SELF_REPO so Investigate always opens #8–#11.
+  if (safe === SELF_REPO_LEDGER_CASE) {
+    for (const session of filterRepoSessions(listSessions(), owner, repo)) {
+      if (
+        caseKind(session) === "campaign" &&
+        safeLedgerCaseId(session.ledgerCaseId) !== safe
+      ) {
+        removeSession(session.id);
+      }
+    }
+  }
+
+  return createCampaignDemoSession(owner, repo, safe);
 }
 
 export function campaignCasePath(

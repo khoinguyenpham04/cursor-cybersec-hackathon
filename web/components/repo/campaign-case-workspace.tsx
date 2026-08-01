@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { extractCampaign } from "@/lib/campaign";
 import {
   campaignDemoKickoffMessage,
+  resolveLedgerCaseId,
   safeLedgerCaseId,
 } from "@/lib/campaign-demo";
 import { abortConversation } from "@/lib/flue-abort";
@@ -48,7 +49,11 @@ export function CampaignCaseWorkspace({
       sessions.find((entry) => entry.id === sessionId) ?? getSession(sessionId),
     [sessions, sessionId],
   );
-  const ledgerCaseId = safeLedgerCaseId(session?.ledgerCaseId);
+  const ledgerCaseId = resolveLedgerCaseId(
+    owner,
+    repo,
+    session?.ledgerCaseId,
+  );
   const repoRef = `${owner}/${repo}`;
   const agentUrl = `/api/agents/campaign-orchestrator/${sessionId}`;
   const agent = useFlueAgent({ url: agentUrl });
