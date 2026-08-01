@@ -77,7 +77,7 @@ function worstSeverity(vulns: DepVuln[]): number | null {
 function RootNodeCard({ data }: { data: { name: string; lockfile: string; packages: number } }) {
   return (
     <Node
-      className="w-58 gap-0 border-l-2 border-l-primary px-3 py-2.5"
+      className="h-14 w-58 justify-center gap-0 overflow-hidden border-l-2 border-l-primary px-3 py-0"
       handles={{ target: false, source: false }}
     >
       <Handle position={Position.Right} type="source" />
@@ -103,7 +103,7 @@ function DepNodeCard({
   return (
     <Node
       className={cn(
-        "w-58 cursor-pointer gap-0 border-l-2 px-3 py-2.5 transition-shadow hover:shadow-md",
+        "h-14 w-58 cursor-pointer justify-center gap-0 overflow-hidden border-l-2 px-3 py-0 transition-shadow hover:shadow-md",
         style?.accent ?? "border-l-border",
         pkg.dev && !style && "opacity-70",
         data.selected && "ring-2 ring-primary/60",

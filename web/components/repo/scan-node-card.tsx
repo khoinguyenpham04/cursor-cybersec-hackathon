@@ -40,7 +40,9 @@ export function ScanNodeCard({ data }: { data: ScanNodeData }) {
   return (
     <Node
       className={cn(
-        "w-58 cursor-pointer gap-0 border-l-2 py-2.5 pr-3 pl-3 transition-shadow hover:shadow-md",
+        // Fixed height keeps every card identical so the layout's row maths
+        // (and therefore the group frames) line up exactly — see NODE_HEIGHT.
+        "h-14 w-58 cursor-pointer justify-center gap-0 overflow-hidden border-l-2 px-3 py-0 transition-shadow hover:shadow-md",
         meta.accent,
         data.selected && "ring-2 ring-primary/60",
       )}

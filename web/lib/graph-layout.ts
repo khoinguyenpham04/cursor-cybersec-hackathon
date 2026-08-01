@@ -6,7 +6,10 @@
 import type { ScanEdge, ScanNode } from "./scan";
 
 export const NODE_WIDTH = 232;
-export const NODE_HEIGHT = 64;
+// Must match the card's fixed height (h-14) in scan-node-card.tsx / the dep
+// node card: the layout positions rows by this number, so any drift shows up
+// as group frames that do not line up with the cards inside them.
+export const NODE_HEIGHT = 56;
 const COLUMN_GAP = 96;
 const ROW_GAP = 20;
 const GROUP_PADDING_TOP = 26;

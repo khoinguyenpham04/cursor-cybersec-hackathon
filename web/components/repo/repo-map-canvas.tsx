@@ -30,11 +30,9 @@ import { useEffect, useMemo, useState } from "react";
 const nodeTypes = { scan: ScanNodeCard };
 
 function GroupFrame({ data }: { data: { name: string; width: number; height: number } }) {
+  // Fills the flow node, which carries the real dimensions (see `frames`).
   return (
-    <div
-      className="pointer-events-none rounded-lg border border-dashed bg-muted/20"
-      style={{ width: data.width, height: data.height }}
-    >
+    <div className="pointer-events-none size-full rounded-lg border border-dashed bg-muted/20">
       <span className="block px-2.5 pt-1.5 font-medium text-[10px] text-muted-foreground uppercase tracking-wide">
         {data.name}
       </span>
@@ -63,12 +61,18 @@ function MapInner({
     const incoming = new Set(scan.edges.map((edge) => edge.to));
     const outgoing = new Set(scan.edges.map((edge) => edge.from));
 
-    // Group frames render behind the cards as unselectable nodes.
+    // Group frames render behind the cards as unselectable nodes. The size
+    // goes on the node itself (width/height AND style): without it React Flow
+    // measures the wrapper independently of the child, and the dashed frame
+    // ends up narrower than the cards it is supposed to contain.
     const frames: FlowNode[] = layout.groups.map((group) => ({
       id: `group:${group.name}`,
       type: "group",
       position: { x: group.x, y: group.y },
-      data: { name: group.name, width: group.width, height: group.height },
+      data: { name: group.name },
+      width: group.width,
+      height: group.height,
+      style: { width: group.width, height: group.height },
       draggable: false,
       selectable: false,
       zIndex: 0,
