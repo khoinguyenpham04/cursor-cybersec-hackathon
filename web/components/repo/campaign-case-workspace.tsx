@@ -11,15 +11,11 @@ import {
 } from "@/components/ai-elements/prompt-input";
 import { CaseOrchestration } from "@/components/case/case-orchestration";
 import { CaseOverview } from "@/components/case/case-overview";
+import { CaseReport, resolveReportPhase } from "@/components/case/case-report";
 import { CaseShell } from "@/components/case/case-shell";
 import { Transcript } from "@/components/review/transcript";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  extractCampaign,
-  trailLabel,
-  type CampaignResult,
-} from "@/lib/campaign";
+import { extractCampaign } from "@/lib/campaign";
 import {
   campaignDemoKickoffMessage,
   safeLedgerCaseId,
@@ -61,6 +57,41 @@ export function CampaignCaseWorkspace({
     () => extractCampaign(agent.messages),
     [agent.messages],
   );
+
+  const { investigateDone, submitFailed } = useMemo(() => {
+    let investigateDone = false;
+    let submitFailed = false;
+    for (const message of agent.messages) {
+      if (message.role !== "assistant") continue;
+      for (const part of message.parts) {
+        if (part.type !== "dynamic-tool") continue;
+        if (
+          part.toolName === "investigate_case" &&
+          part.state === "output-available"
+        ) {
+          investigateDone = true;
+        }
+        if (
+          part.toolName === "submit_campaign" &&
+          part.state === "output-error"
+        ) {
+          submitFailed = true;
+        }
+      }
+      if (message.settlement?.outcome === "aborted" || message.settlement?.outcome === "failed") {
+        submitFailed = true;
+      }
+    }
+    return { investigateDone, submitFailed };
+  }, [agent.messages]);
+
+  const reportPhase = resolveReportPhase({
+    working,
+    campaign,
+    hasError: agent.status === "error",
+    investigateDone,
+    submitFailed,
+  });
 
   useEffect(() => {
     updateSession(sessionId, {
@@ -228,22 +259,16 @@ export function CampaignCaseWorkspace({
         />
       }
       report={
-        <div className="mx-auto w-full max-w-2xl px-4 py-6 lg:px-6">
-          {campaign ? (
-            <CampaignResultView campaign={campaign} />
-          ) : (
-            <div className="space-y-1 text-sm">
-              <p className="font-medium">
-                {working ? "Report pending" : "No campaign report yet"}
-              </p>
-              <p className="text-muted-foreground text-pretty">
-                {working
-                  ? "Investigation in progress — switch to Orchestration or Transcript for live tools."
-                  : "Re-run the investigation or nudge submit_campaign from Transcript."}
-              </p>
-            </div>
-          )}
-        </div>
+        <CaseReport
+          campaign={campaign}
+          message={
+            reportPhase === "failed" && !campaign
+              ? "Investigation finished without a parseable submit_campaign result. Open Transcript or Re-run."
+              : undefined
+          }
+          phase={reportPhase}
+          sessionId={sessionId}
+        />
       }
       resetDefaultSignal={resetDefaultSignal}
       toolbar={toolbar}
@@ -270,62 +295,5 @@ export function CampaignCaseWorkspace({
       }
       working={working}
     />
-  );
-}
-
-function CampaignResultView({ campaign }: { campaign: CampaignResult }) {
-  return (
-    <div className="flex flex-col gap-5">
-      <div className="rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3">
-        <p className="font-medium text-sm">Campaign detected</p>
-        <p className="mt-1 text-muted-foreground text-sm text-pretty">
-          Sequence {trailLabel(campaign.trail)} scores {campaign.campaignScore}
-          /100 — not a single-PR CVE dump.
-        </p>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline">{campaign.verdict.replace("_", " ")}</Badge>
-        <Badge variant="secondary">score {campaign.campaignScore}</Badge>
-        {campaign.topSeverity && (
-          <Badge
-            className="border border-red-500/30 bg-red-500/15 text-red-600 dark:text-red-400"
-            variant="outline"
-          >
-            {campaign.topSeverity}
-          </Badge>
-        )}
-      </div>
-      {campaign.headline && (
-        <h2 className="font-semibold text-lg text-pretty">{campaign.headline}</h2>
-      )}
-      <p className="text-muted-foreground text-sm">
-        Trail {trailLabel(campaign.trail)}
-      </p>
-      <p className="text-sm text-pretty whitespace-pre-wrap">{campaign.narrative}</p>
-      <div className="space-y-2">
-        <h3 className="font-medium text-sm">Recommended actions</h3>
-        <ul className="flex flex-col gap-2">
-          {campaign.recommendedActions.map((action, index) => (
-            <li
-              className="rounded-lg border px-3 py-2 text-sm"
-              key={`${action.action}-${action.target}-${index}`}
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge className="text-[10px]" variant="outline">
-                  {action.action}
-                </Badge>
-                <Badge className="text-[10px]" variant="secondary">
-                  {action.priority}
-                </Badge>
-                <span className="font-medium">{action.target}</span>
-              </div>
-              <p className="mt-1 text-muted-foreground text-pretty">
-                {action.rationale}
-              </p>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
   );
 }
