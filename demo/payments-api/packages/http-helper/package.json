@@ -1,0 +1,8 @@
+{
+  "name": "http-helper",
+  "version": "1.0.0",
+  "description": "Tiny retry helper for demo (boiling-frog PR1). No install scripts.",
+  "type": "module",
+  "main": "index.js",
+  "exports": "./index.js"
+}

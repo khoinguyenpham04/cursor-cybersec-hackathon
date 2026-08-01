@@ -1,0 +1,10 @@
+{
+  "name": "acme-payments-api-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Boiling-frog demo substrate (not the product). See GitHub issue #7.",
+  "type": "module",
+  "dependencies": {
+    "http-helper": "file:packages/http-helper"
+  }
+}
