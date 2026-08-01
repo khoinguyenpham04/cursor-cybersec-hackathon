@@ -9,19 +9,24 @@ import {
   PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
-import { Transcript } from "@/components/review/transcript";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { CaseOrchestration } from "@/components/case/case-orchestration";
+import { CaseOverview } from "@/components/case/case-overview";
 import {
-  extractCampaign,
-  trailLabel,
-  type CampaignResult,
-} from "@/lib/campaign";
+  CASE_COLUMN,
+  CASE_CONTENT_WIDTH,
+  CASE_PAD_X,
+} from "@/components/case/case-panel";
+import { CaseReport, resolveReportPhase } from "@/components/case/case-report";
+import { CaseShell } from "@/components/case/case-shell";
+import { Transcript } from "@/components/review/transcript";
+import { Button } from "@/components/ui/button";
+import { extractCampaign } from "@/lib/campaign";
 import {
   campaignDemoKickoffMessage,
   safeLedgerCaseId,
 } from "@/lib/campaign-demo";
 import { abortConversation } from "@/lib/flue-abort";
+import { softToolError } from "@/lib/orchestration";
 import { getSession, updateSession, useReviewSessions } from "@/lib/sessions";
 import { cn } from "@/lib/utils";
 import { useFlueAgent } from "@flue/react";
@@ -48,17 +53,69 @@ export function CampaignCaseWorkspace({
   const agentUrl = `/api/agents/campaign-orchestrator/${sessionId}`;
   const agent = useFlueAgent({ url: agentUrl });
 
+  const [awaitingRun, setAwaitingRun] = useState(false);
   const working =
-    agent.status === "submitted" || agent.status === "streaming";
+    awaitingRun ||
+    agent.status === "submitted" ||
+    agent.status === "streaming";
   const [stopping, setStopping] = useState(false);
   const [stopError, setStopError] = useState<string | null>(null);
   const [kickoffReady, setKickoffReady] = useState(false);
+  const [resetDefaultSignal, setResetDefaultSignal] = useState(0);
+
+  useEffect(() => {
+    if (!awaitingRun) return;
+    if (
+      agent.status === "submitted" ||
+      agent.status === "streaming" ||
+      agent.status === "error"
+    ) {
+      setAwaitingRun(false);
+      return;
+    }
+    // If send never flips status, don't leave the UI stuck "working".
+    const timeout = window.setTimeout(() => setAwaitingRun(false), 8_000);
+    return () => window.clearTimeout(timeout);
+  }, [awaitingRun, agent.status]);
   const campaign = useMemo(
     () => extractCampaign(agent.messages),
     [agent.messages],
   );
 
-  // Persist kind/ledger; fill repo only when missing so a mismatched URL can't rebind the case.
+  const { investigateDone, submitFailed } = useMemo(() => {
+    let investigateDone = false;
+    let submitFailed = false;
+    for (const message of agent.messages) {
+      if (message.role !== "assistant") continue;
+      for (const part of message.parts) {
+        if (part.type !== "dynamic-tool") continue;
+        if (
+          part.toolName === "investigate_case" &&
+          part.state === "output-available"
+        ) {
+          investigateDone = true;
+        }
+        if (part.toolName === "submit_campaign") {
+          if (part.state === "output-error" || softToolError(part)) {
+            submitFailed = true;
+          }
+        }
+      }
+      if (message.settlement?.outcome === "aborted" || message.settlement?.outcome === "failed") {
+        submitFailed = true;
+      }
+    }
+    return { investigateDone, submitFailed };
+  }, [agent.messages]);
+
+  const reportPhase = resolveReportPhase({
+    working,
+    campaign,
+    hasError: agent.status === "error",
+    investigateDone,
+    submitFailed,
+  });
+
   useEffect(() => {
     updateSession(sessionId, {
       kind: "campaign",
@@ -134,6 +191,10 @@ export function CampaignCaseWorkspace({
 
   const rerun = useCallback(() => {
     if (!canRerun) return;
+    // Mark working immediately so CaseShell prefers Orchestration before
+    // Flue status flips (stale hasResult would otherwise snap back to Report).
+    setAwaitingRun(true);
+    setResetDefaultSignal((n) => n + 1);
     void agent.sendMessage(
       `Re-investigate ${ledgerCaseId}: load_fixture_case if needed, investigate_case, then submit_campaign.`,
     );
@@ -145,9 +206,9 @@ export function CampaignCaseWorkspace({
     void agent.sendMessage(text);
   }
 
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3 lg:px-6">
+  const toolbar = (
+    <div className={cn("border-b py-3", CASE_PAD_X)}>
+      <div className={cn(CASE_COLUMN, "flex flex-wrap items-center gap-2")}>
         <ShieldAlertIcon className="size-4 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium text-sm">
@@ -200,125 +261,76 @@ export function CampaignCaseWorkspace({
           </Button>
         )}
       </div>
-
-      {(agent.error || stopError) && (
-        <div className="border-b bg-destructive/10 px-6 py-2 text-destructive text-sm">
-          {agent.error?.message ?? stopError}
-        </div>
-      )}
-
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6 lg:px-6">
-          <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">
-            <p className="font-medium">Supply-chain campaign demo</p>
-            <p className="mt-1 text-muted-foreground text-pretty">
-              Three green-looking PRs compose into one campaign. The orchestrator
-              runs <code className="text-xs">investigate_case</code> then{" "}
-              <code className="text-xs">submit_campaign</code> on{" "}
-              <code className="text-xs">{ledgerCaseId}</code>.
-            </p>
-          </div>
-
-          {campaign ? (
-            <CampaignResultView campaign={campaign} />
-          ) : (
-            <div className="space-y-1 text-sm">
-              <p className="font-medium">
-                {working
-                  ? "Investigating the PR sequence…"
-                  : kickoffReady
-                    ? "Waiting for campaign result"
-                    : "Preparing investigation…"}
-              </p>
-              <p className="text-muted-foreground text-pretty">
-                Specialists fan out over the fixture (graph, provenance, CI),
-                then compose one scored campaign with policy actions. Follow the
-                transcript below if the structured result is delayed.
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="border-t">
-          <Transcript messages={agent.messages} status={agent.status} />
-        </div>
-      </div>
-
-      <div className="border-t px-4 py-3 lg:px-6">
-        <PromptInput className="mx-auto max-w-3xl" onSubmit={handleSubmit}>
-          <PromptInputBody>
-            <PromptInputTextarea
-              disabled={!agent.historyReady || working}
-              placeholder="Ask about the campaign, or nudge submit_campaign…"
-            />
-          </PromptInputBody>
-          <PromptInputFooter>
-            <PromptInputTools />
-            <PromptInputSubmit
-              disabled={stopping || !agent.historyReady}
-              onStop={stop}
-              status={working ? "streaming" : "ready"}
-            />
-          </PromptInputFooter>
-        </PromptInput>
-      </div>
     </div>
   );
-}
 
-function CampaignResultView({ campaign }: { campaign: CampaignResult }) {
-  return (
-    <div className="flex flex-col gap-5">
-      <div className="rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3">
-        <p className="font-medium text-sm">Campaign detected</p>
-        <p className="mt-1 text-muted-foreground text-sm text-pretty">
-          Sequence {trailLabel(campaign.trail)} scores {campaign.campaignScore}
-          /100 — not a single-PR CVE dump.
+  const banner =
+    agent.error || stopError ? (
+      <div className={cn("border-b bg-destructive/10 py-2", CASE_PAD_X)}>
+        <p className={cn(CASE_COLUMN, "text-destructive text-sm")}>
+          {agent.error?.message ?? stopError}
         </p>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="outline">{campaign.verdict.replace("_", " ")}</Badge>
-        <Badge variant="secondary">score {campaign.campaignScore}</Badge>
-        {campaign.topSeverity && (
-          <Badge
-            className="border border-red-500/30 bg-red-500/15 text-red-600 dark:text-red-400"
-            variant="outline"
-          >
-            {campaign.topSeverity}
-          </Badge>
-        )}
-      </div>
-      {campaign.headline && (
-        <h2 className="font-semibold text-lg text-pretty">{campaign.headline}</h2>
-      )}
-      <p className="text-muted-foreground text-sm">
-        Trail {trailLabel(campaign.trail)}
-      </p>
-      <p className="text-sm text-pretty whitespace-pre-wrap">{campaign.narrative}</p>
-      <div className="space-y-2">
-        <h3 className="font-medium text-sm">Recommended actions</h3>
-        <ul className="flex flex-col gap-2">
-          {campaign.recommendedActions.map((action, index) => (
-            <li
-              className="rounded-lg border px-3 py-2 text-sm"
-              key={`${action.action}-${action.target}-${index}`}
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge className="text-[10px]" variant="outline">
-                  {action.action}
-                </Badge>
-                <Badge className="text-[10px]" variant="secondary">
-                  {action.priority}
-                </Badge>
-                <span className="font-medium">{action.target}</span>
-              </div>
-              <p className="mt-1 text-muted-foreground text-pretty">
-                {action.rationale}
-              </p>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
+    ) : null;
+
+  return (
+    <CaseShell
+      banner={banner}
+      hasError={agent.status === "error"}
+      hasResult={Boolean(campaign)}
+      orchestration={
+        <CaseOrchestration messages={agent.messages} status={agent.status} />
+      }
+      overview={
+        <CaseOverview
+          ledgerCaseId={ledgerCaseId}
+          owner={owner}
+          repo={repo}
+        />
+      }
+      report={
+        <CaseReport
+          campaign={campaign}
+          message={
+            reportPhase === "failed" && !campaign
+              ? "Investigation finished without a parseable submit_campaign result. Open Transcript or Re-run."
+              : undefined
+          }
+          phase={reportPhase}
+          sessionId={sessionId}
+        />
+      }
+      resetDefaultSignal={resetDefaultSignal}
+      toolbar={toolbar}
+      transcript={
+        <Transcript
+          contentClassName={CASE_CONTENT_WIDTH}
+          messages={agent.messages}
+          status={agent.status}
+          waitingLabel="Investigating the campaign…"
+        />
+      }
+      transcriptFooter={
+        <div className={cn("border-t py-3", CASE_PAD_X)}>
+          <PromptInput className={CASE_COLUMN} onSubmit={handleSubmit}>
+            <PromptInputBody>
+              <PromptInputTextarea
+                disabled={!agent.historyReady || working}
+                placeholder="Ask about the campaign, or nudge submit_campaign…"
+              />
+            </PromptInputBody>
+            <PromptInputFooter>
+              <PromptInputTools />
+              <PromptInputSubmit
+                disabled={stopping || !agent.historyReady}
+                onStop={stop}
+                status={working ? "streaming" : "ready"}
+              />
+            </PromptInputFooter>
+          </PromptInput>
+        </div>
+      }
+      working={working}
+    />
   );
 }

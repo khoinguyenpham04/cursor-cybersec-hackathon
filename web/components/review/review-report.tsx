@@ -60,7 +60,7 @@ export function FindingCard({
       </div>
       <h4 className="mt-2 font-medium text-sm">{finding.title}</h4>
       {finding.body && (
-        <MessageResponse className="mt-1 text-muted-foreground text-sm">
+        <MessageResponse className="mt-1 text-muted-foreground text-sm leading-relaxed [&>p]:my-1 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 [&>ul]:my-1 [&>ul]:list-disc [&>ul]:pl-5">
           {finding.body}
         </MessageResponse>
       )}
@@ -69,7 +69,7 @@ export function FindingCard({
           <span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
             Trigger
           </span>
-          <MessageResponse className="mt-0.5 text-sm">
+          <MessageResponse className="mt-0.5 text-sm leading-relaxed [&>p]:my-0">
             {finding.trigger}
           </MessageResponse>
         </div>
@@ -79,7 +79,7 @@ export function FindingCard({
           <span className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
             Fix
           </span>
-          <MessageResponse className="mt-0.5 text-sm">
+          <MessageResponse className="mt-0.5 text-sm leading-relaxed [&>p]:my-0">
             {finding.fix}
           </MessageResponse>
         </div>
@@ -138,7 +138,9 @@ export function ReviewReport({
         </span>
       </div>
       <div className="px-4 py-3">
-        <MessageResponse className="text-sm">{review.summary}</MessageResponse>
+        <MessageResponse className="text-sm leading-relaxed [&>p]:my-1 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 [&>ul]:my-1 [&>ul]:list-disc [&>ul]:pl-5">
+          {review.summary}
+        </MessageResponse>
       </div>
       {review.findings.length > 0 ? (
         <div className="flex flex-col gap-2.5 border-t px-4 py-3">
