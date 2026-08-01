@@ -1,25 +1,45 @@
-# PR Reviewer
+# Supply-chain campaign orchestrator (+ PR reviewer)
 
-AI code review for GitHub pull requests — a [Flue](https://flueframework.com) agent with a
-Codex-style Next.js UI.
+Multi-agent [Flue](https://flueframework.com) system that detects **open-source
+supply-chain campaigns across PR sequences**, plus the original single-PR
+adversarial reviewer.
 
-Paste a PR link, and the agent fetches the diff, reviews every change with
-Claude, and streams back findings with severities and `path:line` references.
-Ask follow-up questions in the same conversation; switch to the Diff tab to
-read the change yourself.
+## Agents
+
+| Route | Role |
+|---|---|
+| `/agents/campaign-orchestrator` | Parent orchestrator + specialists (`graph_analyst`, `provenance_scout`, `ci_auditor`, `campaign_composer`) over a shared Risk Ledger |
+| `/agents/pr-reviewer` | Original single-PR adversarial code review |
+
+Orchestrate reads **Case Bundles** from `agent/src/ledger` (facts). Ingest owns
+writing real cases; this branch ships a fixture (`fixture-boiling-frog`) so the
+orchestrator can be developed in parallel.
+
+```bash
+# terminal 1
+cd agent && npm install && npm run dev
+
+# demo campaign (CLI)
+cd agent
+npx flue run src/agents/campaign-orchestrator.ts --message "Review fixture-boiling-frog"
+
+# deterministic contract check (no LLM)
+npm run eval:fixture
+```
 
 ## Structure
 
 ```
 agent/   Flue agent server (Hono + Vite, Node target)
-  src/agents/pr-reviewer.ts   the PrReviewer agent (model + system prompt)
-  src/tools/github.ts         fetch_pr / fetch_pr_diff / fetch_file tools
-  src/app.ts                  route map — mounts /agents/pr-reviewer
+  src/agents/campaign-orchestrator.ts   multi-agent campaign parent
+  src/subagents/                        graph / provenance / ci / composer
+  src/ledger/                           Case Bundle + Claim contract + fixtures
+  src/agents/pr-reviewer.ts             single-PR adversarial reviewer
+  src/app.ts                            mounts both agent routes
 
 web/     Next.js app (App Router, shadcn/ui, Vercel AI Elements)
+  lib/campaign.ts             extract submit_campaign from the stream
   components/review/          session sidebar, transcript, diff viewer
-  app/api/github/pr/          server route backing the Diff tab
-  next.config.ts              proxies /api/agents/* → the Flue server
 ```
 
 The browser talks only to Next.js. `useFlueAgent` (from `@flue/react`) opens the
