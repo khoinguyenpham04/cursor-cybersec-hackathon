@@ -1,15 +1,15 @@
 import { defineSubagent, useSkill, useTool } from '@flue/runtime';
 import provenanceScoutSkill from '../skills/provenance-scout/SKILL.md';
-import { listCaseDeltas, readCase, writeCaseClaim } from '../tools/ledger.ts';
+import { listCaseDeltas, readCase, writeClaimProvenanceScout } from '../tools/ledger.ts';
 
 function ProvenanceScout() {
 	useTool(readCase);
 	useTool(listCaseDeltas);
-	useTool(writeCaseClaim);
+	useTool(writeClaimProvenanceScout);
 	useSkill(provenanceScoutSkill);
 	return `You are provenance_scout. Follow the provenance-scout skill.
 The task prompt includes caseId and runId — use that runId on every write_claim.
-agent field on claims must be "provenance_scout".`;
+Your agent identity is bound by the tool; do not try to claim another specialist's identity.`;
 }
 
 export const provenanceScout = defineSubagent({

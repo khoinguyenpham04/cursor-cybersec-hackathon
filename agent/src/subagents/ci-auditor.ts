@@ -1,15 +1,15 @@
 import { defineSubagent, useSkill, useTool } from '@flue/runtime';
 import ciAuditorSkill from '../skills/ci-auditor/SKILL.md';
-import { listCaseDeltas, readCase, writeCaseClaim } from '../tools/ledger.ts';
+import { listCaseDeltas, readCase, writeClaimCiAuditor } from '../tools/ledger.ts';
 
 function CiAuditor() {
 	useTool(readCase);
 	useTool(listCaseDeltas);
-	useTool(writeCaseClaim);
+	useTool(writeClaimCiAuditor);
 	useSkill(ciAuditorSkill);
 	return `You are ci_auditor. Follow the ci-auditor skill.
 The task prompt includes caseId and runId — use that runId on every write_claim.
-agent field on claims must be "ci_auditor".`;
+Your agent identity is bound by the tool; do not try to claim another specialist's identity.`;
 }
 
 export const ciAuditor = defineSubagent({

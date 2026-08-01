@@ -15,11 +15,16 @@ export {
 export {
 	getCampaignResult,
 	getCase,
+	getInvestigation,
 	listCases,
 	listClaims,
 	listDeltas,
 	loadFixture,
+	projectCaseForModel,
 	putCampaignResult,
 	putCase,
+	putInvestigation,
+	validateEvidenceRefs,
 	writeClaim,
 } from './store.ts';
+export { assertSafeId } from './ids.ts';

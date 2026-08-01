@@ -13,8 +13,15 @@ adversarial reviewer.
 
 Orchestrate reads **Case Bundles** from `agent/src/ledger` (facts). Ingest owns
 writing real cases; this branch ships a fixture (`fixture-boiling-frog`) so the
-orchestrator can be developed in parallel. Specialist parallelism is
-**control-plane enforced** via `investigate_case`, not prompt-hoped `task` calls.
+orchestrator can be developed in parallel.
+
+`investigate_case` is the control plane: it dispatches specialists (via harness
+`task`), **verifies ledger-backed coverage for that run**, persists an
+`InvestigationPacket`, and `submit_campaign` only accepts `{ caseId, runId }`
+(draft fields are loaded server-side). Parallelism of the three `task` calls is
+still issued by the harness model in one batch — Flue has no programmatic
+`session.task()` — but coverage cannot be satisfied by invented or pre-existing
+claims.
 
 ```bash
 # terminal 1
@@ -40,7 +47,7 @@ agent/   Flue agent server (Hono + Vite, Node target)
   src/app.ts                            mounts both agent routes
 
 web/     Next.js app (App Router, shadcn/ui, Vercel AI Elements)
-  lib/campaign.ts             extract submit_campaign from the stream
+  lib/campaign.ts             extract submit_campaign output (not yet wired into UI)
   components/review/          session sidebar, transcript, diff viewer
 ```
 

@@ -119,6 +119,8 @@ export const campaignResultSchema = v.object({
 	narrative: v.string(),
 	claimIds: v.array(v.string()),
 	recommendedActions: v.array(recommendedActionSchema),
+	headline: v.optional(v.string()),
+	topSeverity: v.optional(severitySchema),
 });
 export type CampaignResult = v.InferOutput<typeof campaignResultSchema>;
 

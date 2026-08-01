@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { defineTool, type JsonValue } from '@flue/runtime';
 import * as v from 'valibot';
 import {
+	SPECIALIST_AGENTS,
 	campaignDraftSchema,
 	coverageComplete,
 	coverageFromAgents,
@@ -9,7 +11,11 @@ import {
 	type CampaignDraft,
 	type FanOutResult,
 } from '../lib/investigation-schema.ts';
-import { getCase, listClaims } from '../ledger/store.ts';
+import {
+	getCase,
+	listClaims,
+	putInvestigation,
+} from '../ledger/store.ts';
 
 function buildFanOutPrompt(caseId: string, runId: string): string {
 	return `You are the control-plane dispatcher for a supply-chain campaign investigation.
@@ -17,16 +23,13 @@ function buildFanOutPrompt(caseId: string, runId: string): string {
 caseId: ${caseId}
 runId: ${runId}
 
-CRITICAL — do this in ONE tool-call batch (parallel), not sequentially:
-1. Call task agent=graph_analyst with a self-contained prompt that includes caseId + runId.
-   Instruct it to read_case, write_claim (agent field "graph_analyst"), and return claim ids.
-2. Call task agent=provenance_scout the same way (agent field "provenance_scout").
-3. Call task agent=ci_auditor the same way (agent field "ci_auditor").
+CRITICAL — issue these three task calls in ONE tool-call batch (parallel), not sequentially:
+1. task agent=graph_analyst — self-contained prompt with caseId + runId; it must write_claim and return claim ids.
+2. task agent=provenance_scout — same.
+3. task agent=ci_auditor — same.
 
-After all three tasks complete, call finish with claimIdsByAgent listing the claim ids
-each specialist reported (cross-check against their final messages).
-
-Do not invent claim ids. Do not review the case yourself — only dispatch and collect.`;
+After all three complete, call finish with claimIdsByAgent listing the claim ids each
+specialist actually returned. Do not invent claim ids. Do not review the case yourself.`;
 }
 
 function buildComposePrompt(caseId: string, runId: string, claimIds: string[]): string {
@@ -34,26 +37,23 @@ function buildComposePrompt(caseId: string, runId: string, claimIds: string[]): 
 
 caseId: ${caseId}
 runId: ${runId}
-claimIds already on the ledger: ${claimIds.join(', ')}
+claimIds on the ledger for this run: ${claimIds.join(', ')}
 
-Delegate ONCE via task to campaign_composer with a self-contained prompt that includes
-caseId, runId, and these claimIds. The composer must list_claims + read_case and return
-a full campaign draft.
-
-Then call finish with the draft fields: verdict, campaignScore, trail, narrative,
-claimIds, recommendedActions, and optional headline.
+Delegate ONCE via task to campaign_composer with caseId, runId, and these claimIds.
+Then call finish with: verdict, campaignScore, trail, narrative, claimIds,
+recommendedActions, optional headline.
 
 Policy actions only (pin | quarantine | require_dual_review | revert_sequence | block_merge).
-Do not suggest "upgrade to latest" as the primary fix.`;
+trail MUST be an exact ordered subset of the case timeline PR numbers (no extras).
+claimIds MUST be from the list above.`;
 }
 
 export const investigateCase = defineTool({
 	name: 'investigate_case',
 	description:
-		'Control-plane investigation: fan out graph_analyst, provenance_scout, and ci_auditor in parallel, enforce claim coverage, run campaign_composer, and return an InvestigationPacket. Call this instead of manually tasking specialists.',
+		'Control-plane investigation: mints runId, dispatches specialists, enforces ledger-backed coverage, runs composer, persists InvestigationPacket. Then call submit_campaign({ caseId, runId }) using the returned runId.',
 	input: v.object({
-		caseId: v.pipe(v.string(), v.description('Ledger case id')),
-		runId: v.pipe(v.string(), v.description('Shared run id for all claims in this investigation')),
+		caseId: v.pipe(v.string(), v.regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/)),
 	}),
 	durable: true,
 	harness: true,
@@ -63,61 +63,124 @@ export const investigateCase = defineTool({
 			throw new Error(`Case not found: ${data.caseId}`);
 		}
 
+		const runId = await step.do('mint_run', () => `run_${randomUUID()}`);
+
+		// JSON-serializable array — Sets do not survive durable step replay.
+		const priorIdList = await step.do('prior_claims', () =>
+			listClaims(data.caseId, runId).map((c) => c.id),
+		);
+
 		const fanOut = await step.do('fan_out', async (): Promise<FanOutResult> => {
-			const response = await harness.prompt(buildFanOutPrompt(data.caseId, data.runId), {
+			const response = await harness.prompt(buildFanOutPrompt(data.caseId, runId), {
 				result: fanOutResultSchema,
+				model: process.env.CAMPAIGN_DISPATCH_MODEL || 'anthropic/claude-sonnet-4-6',
 			});
 			return response.data;
 		});
 
-		log.info(
-			`Fan-out complete for ${data.caseId}: ` +
-				`graph=${fanOut.claimIdsByAgent.graph_analyst.length} ` +
-				`prov=${fanOut.claimIdsByAgent.provenance_scout.length} ` +
-				`ci=${fanOut.claimIdsByAgent.ci_auditor.length}`,
-		);
-
 		const coverage = await step.do('coverage_gate', () => {
-			const claims = listClaims(data.caseId, data.runId);
-			const fromLedger = coverageFromAgents(claims.map((c) => c.agent));
-			if (!coverageComplete(fromLedger)) {
+			const priorIds = new Set(priorIdList);
+			const claims = listClaims(data.caseId, runId);
+			const byId = new Map(claims.map((c) => [c.id, c]));
+			const fresh = claims.filter((c) => !priorIds.has(c.id));
+
+			for (const agent of SPECIALIST_AGENTS) {
+				const reported = fanOut.claimIdsByAgent[agent];
+				if (!reported.length) {
+					throw new Error(`Fan-out reported zero claim ids for ${agent}`);
+				}
+				for (const id of reported) {
+					const claim = byId.get(id);
+					if (!claim) {
+						throw new Error(`Fan-out reported unknown claim id ${id} for ${agent}`);
+					}
+					if (claim.agent !== agent) {
+						throw new Error(
+							`Claim ${id} agent is ${claim.agent}, fan-out attributed it to ${agent}`,
+						);
+					}
+					if (priorIds.has(id)) {
+						throw new Error(
+							`Claim ${id} pre-existed this fan-out; reuse of prior-run claims is not coverage`,
+						);
+					}
+				}
+			}
+
+			const fromFresh = coverageFromAgents(fresh.map((c) => c.agent));
+			if (!coverageComplete(fromFresh)) {
 				throw new Error(
-					`Incomplete specialist coverage for run ${data.runId}: ` +
-						JSON.stringify(fromLedger) +
-						`. Fan-out reported ${JSON.stringify(fanOut.claimIdsByAgent)}. ` +
-						`Each of graph_analyst, provenance_scout, ci_auditor must write_claim at least once.`,
+					`Incomplete specialist coverage for run ${runId}: ${JSON.stringify(fromFresh)}`,
 				);
 			}
+
 			return {
-				coverage: fromLedger,
-				claimIds: claims.map((c) => c.id),
+				coverage: fromFresh,
+				claimIds: fresh.map((c) => c.id),
 			};
 		});
 
+		log.info(`Coverage OK for ${data.caseId}/${runId}: ${coverage.claimIds.length} fresh claims`);
+
 		const draft = await step.do('compose', async (): Promise<CampaignDraft> => {
 			const response = await harness.prompt(
-				buildComposePrompt(data.caseId, data.runId, coverage.claimIds),
-				{ result: campaignDraftSchema },
+				buildComposePrompt(data.caseId, runId, coverage.claimIds),
+				{
+					result: campaignDraftSchema,
+					model: process.env.CAMPAIGN_DISPATCH_MODEL || 'anthropic/claude-sonnet-4-6',
+				},
 			);
 			return response.data;
 		});
 
+		const allowedPrs = bundle.timeline.map((t) => t.prNumber);
+		const allowedSet = new Set(allowedPrs);
+		if (draft.trail.some((n) => !allowedSet.has(n))) {
+			throw new Error(
+				`Composer trail ${JSON.stringify(draft.trail)} contains PRs outside case timeline ${JSON.stringify(allowedPrs)}`,
+			);
+		}
+		if (!draft.trail.length) {
+			throw new Error('Composer returned empty trail');
+		}
+
+		const ledgerSet = new Set(coverage.claimIds);
+		const draftClaimIds = draft.claimIds.filter((id) => ledgerSet.has(id));
+
 		const packet = parseInvestigationPacket({
 			caseId: data.caseId,
-			runId: data.runId,
+			runId,
 			coverage: coverage.coverage,
 			claimIds: coverage.claimIds,
 			draft: {
 				...draft,
-				// Prefer ledger claim ids; fall back to draft if composer echoed a subset.
-				claimIds: draft.claimIds.length ? draft.claimIds : coverage.claimIds,
+				trail: draft.trail,
+				claimIds: draftClaimIds.length ? draftClaimIds : coverage.claimIds,
 			},
 		});
 
+		await step.do('persist_packet', () => {
+			putInvestigation(packet);
+			return { ok: true as const, runId: packet.runId };
+		});
+
 		log.info(
-			`Investigation packet ready: score=${packet.draft.campaignScore} trail=${packet.draft.trail.join('→')}`,
+			`InvestigationPacket stored: ${packet.caseId}/${packet.runId} score=${packet.draft.campaignScore}`,
 		);
 
-		return { output: packet as unknown as JsonValue };
+		// Return a lean summary — full narrative stays on the ledger for submit_campaign.
+		return {
+			output: {
+				caseId: packet.caseId,
+				runId: packet.runId,
+				coverage: packet.coverage,
+				claimIds: packet.claimIds,
+				verdict: packet.draft.verdict,
+				campaignScore: packet.draft.campaignScore,
+				trail: packet.draft.trail,
+				headline: packet.draft.headline ?? null,
+				next: 'Call submit_campaign({ caseId, runId }) with these ids only.',
+			} as unknown as JsonValue,
+		};
 	},
 });

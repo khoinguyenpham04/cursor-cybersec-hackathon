@@ -1,15 +1,15 @@
 import { defineSubagent, useSkill, useTool } from '@flue/runtime';
 import graphAnalystSkill from '../skills/graph-analyst/SKILL.md';
-import { listCaseDeltas, readCase, writeCaseClaim } from '../tools/ledger.ts';
+import { listCaseDeltas, readCase, writeClaimGraphAnalyst } from '../tools/ledger.ts';
 
 function GraphAnalyst() {
 	useTool(readCase);
 	useTool(listCaseDeltas);
-	useTool(writeCaseClaim);
+	useTool(writeClaimGraphAnalyst);
 	useSkill(graphAnalystSkill);
 	return `You are graph_analyst. Follow the graph-analyst skill.
 The task prompt includes caseId and runId — use that runId on every write_claim.
-agent field on claims must be "graph_analyst".`;
+Your agent identity is bound by the tool; do not try to claim another specialist's identity.`;
 }
 
 export const graphAnalyst = defineSubagent({

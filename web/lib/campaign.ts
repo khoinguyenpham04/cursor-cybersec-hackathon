@@ -1,5 +1,5 @@
-// Client-side mirror of agent/src/lib/campaign-schema.ts.
-// CampaignOrchestrator delivers results as a `submit_campaign` tool call.
+// Client-side extractor for CampaignOrchestrator `submit_campaign` tool calls.
+// Prefer settled tool output (server-authored campaign) over model input.
 
 import type { FlueConversationMessage } from "@flue/react";
 
@@ -66,10 +66,20 @@ function parseAction(value: unknown): RecommendedAction | null {
 
 export function parseCampaign(input: unknown): CampaignResult | null {
   if (!isRecord(input)) return null;
+  // Prefer nested campaign from tool output.
+  if (isRecord(input.campaign)) {
+    const nested = parseCampaign(input.campaign);
+    if (nested) return nested;
+  }
   if (!VERDICTS.includes(input.verdict as CampaignVerdict)) return null;
   if (typeof input.caseId !== "string") return null;
   if (typeof input.narrative !== "string") return null;
-  if (typeof input.campaignScore !== "number") return null;
+  if (
+    typeof input.campaignScore !== "number" ||
+    !Number.isFinite(input.campaignScore)
+  ) {
+    return null;
+  }
   if (!Array.isArray(input.trail)) return null;
   const trail = input.trail.filter((n): n is number => typeof n === "number");
   if (!trail.length) return null;
@@ -107,8 +117,14 @@ export function extractCampaign(
       const part = message.parts[j];
       if (part.type !== "dynamic-tool") continue;
       if (part.toolName !== SUBMIT_CAMPAIGN_TOOL) continue;
-      const campaign = parseCampaign(part.input);
-      if (campaign) return campaign;
+      // Prefer settled output (server-authored) over model input (caseId/runId only).
+      const fromOutput =
+        "output" in part && part.output != null
+          ? parseCampaign(part.output)
+          : null;
+      if (fromOutput) return fromOutput;
+      const fromInput = parseCampaign(part.input);
+      if (fromInput) return fromInput;
     }
   }
   return null;
