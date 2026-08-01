@@ -1,0 +1,11 @@
+{
+  "name": "quiet-utils",
+  "version": "0.4.1",
+  "description": "Demo transitive dep with postinstall (boiling-frog PR2). Local file: only.",
+  "type": "module",
+  "main": "index.js",
+  "exports": "./index.js",
+  "scripts": {
+    "postinstall": "node ./scripts/setup.js"
+  }
+}
