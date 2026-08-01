@@ -27,6 +27,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { parsePrRef } from "@/lib/pr"
+import { removeRepo, useRepos } from "@/lib/repos"
 import type { ReviewVerdict } from "@/lib/review"
 import { removeSession, useReviewSessions } from "@/lib/sessions"
 import { cn } from "@/lib/utils"
@@ -38,6 +39,7 @@ import {
   GitPullRequestIcon,
   PlusCircleIcon,
   TrashIcon,
+  TreeStructureIcon,
 } from "@phosphor-icons/react"
 
 const verdictDot: Record<ReviewVerdict, { className: string; label: string }> = {
@@ -61,10 +63,13 @@ const navSecondary = [
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const sessions = useReviewSessions()
-  const params = useParams<{ id?: string }>()
+  const repos = useRepos()
+  const params = useParams<{ id?: string; owner?: string; repo?: string }>()
   const router = useRouter()
   const { isMobile } = useSidebar()
   const activeId = params?.id
+  const activeRepo =
+    params?.owner && params?.repo ? `${params.owner}/${params.repo}` : undefined
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -91,12 +96,86 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   render={<Link href="/" />}
                 >
                   <PlusCircleIcon />
-                  <span>New review</span>
+                  <span>New scan</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+          <SidebarGroupLabel>Repositories</SidebarGroupLabel>
+          <SidebarMenu>
+            {repos.length === 0 && (
+              <p className="px-2 py-1.5 text-muted-foreground text-xs">
+                No repositories yet. Enter one to map it.
+              </p>
+            )}
+            {repos.map((entry) => (
+              <SidebarMenuItem key={entry.id}>
+                <SidebarMenuButton
+                  isActive={entry.id === activeRepo}
+                  render={<Link href={`/repo/${entry.owner}/${entry.repo}`} />}
+                  title={entry.id}
+                >
+                  <TreeStructureIcon />
+                  <span className="truncate">{entry.repo}</span>
+                  {entry.lastScanNodes !== undefined && (
+                    <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
+                      {entry.lastScanNodes}
+                    </span>
+                  )}
+                </SidebarMenuButton>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <SidebarMenuAction showOnHover className="aria-expanded:bg-muted" />
+                    }
+                  >
+                    <DotsThreeOutlineIcon />
+                    <span className="sr-only">More</span>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align={isMobile ? "end" : "start"}
+                    className="w-44"
+                    side={isMobile ? "bottom" : "right"}
+                  >
+                    <DropdownMenuItem
+                      render={<Link href={`/repo/${entry.owner}/${entry.repo}`} />}
+                    >
+                      <TreeStructureIcon />
+                      <span>Open map</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      render={
+                        <a
+                          href={`https://github.com/${entry.id}`}
+                          rel="noreferrer"
+                          target="_blank"
+                        />
+                      }
+                    >
+                      <ArrowSquareOutIcon />
+                      <span>Open on GitHub</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => {
+                        removeRepo(entry.id)
+                        if (entry.id === activeRepo) router.push("/")
+                      }}
+                      variant="destructive"
+                    >
+                      <TrashIcon />
+                      <span>Remove</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroup>
+
         <SidebarGroup className="group-data-[collapsible=icon]:hidden">
           <SidebarGroupLabel>Recent reviews</SidebarGroupLabel>
           <SidebarMenu>

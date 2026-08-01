@@ -26,7 +26,7 @@ export function parsePrRef(input: string): PrRef | null {
 	return null;
 }
 
-async function ghFetch(path: string, accept = 'application/vnd.github+json'): Promise<Response> {
+export async function ghFetch(path: string, accept = 'application/vnd.github+json'): Promise<Response> {
 	const headers: Record<string, string> = {
 		Accept: accept,
 		'X-GitHub-Api-Version': '2022-11-28',
@@ -107,7 +107,11 @@ export async function getPrFiles(ref: PrRef) {
 
 const FILE_CHAR_LIMIT = 50_000;
 
-export async function getFileContent(ref: PrRef, path: string, gitRef: string) {
+export async function getFileContent(
+	ref: { owner: string; repo: string },
+	path: string,
+	gitRef: string,
+) {
 	const encodedPath = path.split('/').map(encodeURIComponent).join('/');
 	const response = await ghFetch(
 		`/repos/${ref.owner}/${ref.repo}/contents/${encodedPath}?ref=${encodeURIComponent(gitRef)}`,

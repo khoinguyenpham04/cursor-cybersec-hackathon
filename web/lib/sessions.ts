@@ -14,6 +14,8 @@ export interface ReviewSession {
   prTitle?: string;
   /** Verdict of the latest completed review in this session. */
   verdict?: ReviewVerdict;
+  /** "owner/repo" this review belongs to, linking it to the repo workspace. */
+  repo?: string;
 }
 
 const STORAGE_KEY = "pr-review-sessions";

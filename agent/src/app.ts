@@ -2,6 +2,7 @@ import { createAgentRouter } from '@flue/runtime/routing';
 import { Hono } from 'hono';
 import { CampaignOrchestrator } from './agents/campaign-orchestrator.ts';
 import { PrReviewer } from './agents/pr-reviewer.ts';
+import { RepoScanner } from './agents/repo-scanner.ts';
 
 const app = new Hono();
 
@@ -20,6 +21,11 @@ const app = new Hono();
 // stays same-origin and no CORS setup is needed.
 app.route('/agents/pr-reviewer', createAgentRouter(PrReviewer));
 app.route('/agents/campaign-orchestrator', createAgentRouter(CampaignOrchestrator));
+
+// One conversation per repository (id convention: scan-{owner}--{repo}), so
+// a scan is durable: revisiting the repo replays the map for free and
+// "rescan" is just another message in the same conversation.
+app.route('/agents/repo-scanner', createAgentRouter(RepoScanner));
 
 app.get('/api/health', (c) => c.json({ ok: true }));
 
