@@ -114,7 +114,7 @@ function MapInner({
 
   // Re-frame when a different scan arrives.
   useEffect(() => {
-    const timer = setTimeout(() => fitView({ padding: 0.15, duration: 300 }), 60);
+    const timer = setTimeout(() => fitView({ padding: 0.12, duration: 300, minZoom: 0.55, maxZoom: 1.1 }), 60);
     return () => clearTimeout(timer);
   }, [scan, fitView]);
 
@@ -127,7 +127,7 @@ function MapInner({
       <Canvas
         edges={edges}
         fitView
-        fitViewOptions={{ padding: 0.15 }}
+        fitViewOptions={{ padding: 0.12, minZoom: 0.55, maxZoom: 1.1 }}
         nodeTypes={allNodeTypes}
         nodes={nodes}
         nodesConnectable={false}

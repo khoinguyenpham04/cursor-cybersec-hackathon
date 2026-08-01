@@ -10,8 +10,10 @@ export const NODE_WIDTH = 232;
 // node card: the layout positions rows by this number, so any drift shows up
 // as group frames that do not line up with the cards inside them.
 export const NODE_HEIGHT = 56;
-const COLUMN_GAP = 96;
-const ROW_GAP = 20;
+// Gaps are a readability trade-off: too tight and the edge fan becomes a
+// hairball, too wide and fitView zooms out until the labels are unreadable.
+const COLUMN_GAP = 140;
+const ROW_GAP = 28;
 const GROUP_PADDING_TOP = 26;
 const GROUP_GAP = 34;
 
@@ -211,45 +213,51 @@ export function layoutScan(nodes: ScanNode[], edges: ScanEdge[]): ScanLayout {
 }
 
 // ---------------------------------------------------------------------------
-// Dependency graph: roots -> direct -> transitive, vulnerable rows first.
+// Tiered layout: each tier is one logical depth (roots -> clusters -> packages)
+// laid out as a wrapped grid. Wrapping is what keeps a 60-package tier on one
+// screen instead of running off the bottom as a single column.
 // ---------------------------------------------------------------------------
 
-export interface DepLayoutInput {
-  roots: Array<{ id: string }>;
-  packages: Array<{
-    name: string;
-    version: string;
-    direct: boolean;
-    vulns: unknown[];
-  }>;
-}
+const SUB_COLUMN_GAP = 48;
 
-export function layoutDeps(input: DepLayoutInput): Map<string, Positioned> {
-  const positions = new Map<string, Positioned>();
-  const column = (index: number) => index * (NODE_WIDTH + COLUMN_GAP);
+export function layoutTiers(
+  tiers: string[][],
+  options: { maxRows?: number } = {},
+): { positions: Map<string, Positioned>; width: number; height: number } {
+  const maxRows = options.maxRows ?? 9;
   const rowStep = NODE_HEIGHT + ROW_GAP;
+  const subColumnStep = NODE_WIDTH + SUB_COLUMN_GAP;
 
-  input.roots.forEach((root, index) => {
-    positions.set(root.id, { id: root.id, x: column(0), y: index * rowStep * 2 });
-  });
+  const plans = tiers
+    .filter((tier) => tier.length > 0)
+    .map((tier) => {
+      const subColumns = Math.max(1, Math.ceil(tier.length / maxRows));
+      const rows = Math.max(1, Math.ceil(tier.length / subColumns));
+      return {
+        tier,
+        rows,
+        width: subColumns * subColumnStep - SUB_COLUMN_GAP,
+        height: rows * NODE_HEIGHT + (rows - 1) * ROW_GAP,
+      };
+    });
 
-  const rank = (pkg: DepLayoutInput["packages"][number]) =>
-    (pkg.vulns.length > 0 ? 0 : 1);
-  const direct = input.packages
-    .filter((pkg) => pkg.direct)
-    .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
-  const transitive = input.packages
-    .filter((pkg) => !pkg.direct)
-    .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+  const tallest = Math.max(0, ...plans.map((plan) => plan.height));
+  const positions = new Map<string, Positioned>();
+  let x = 0;
+  for (const plan of plans) {
+    // Centre each tier against the tallest so the graph reads horizontally.
+    const yOffset = (tallest - plan.height) / 2;
+    plan.tier.forEach((id, index) => {
+      const column = Math.floor(index / plan.rows);
+      const row = index % plan.rows;
+      positions.set(id, {
+        id,
+        x: x + column * subColumnStep,
+        y: yOffset + row * rowStep,
+      });
+    });
+    x += plan.width + COLUMN_GAP;
+  }
 
-  direct.forEach((pkg, index) => {
-    const id = `${pkg.name}@${pkg.version}`;
-    positions.set(id, { id, x: column(1), y: index * rowStep });
-  });
-  transitive.forEach((pkg, index) => {
-    const id = `${pkg.name}@${pkg.version}`;
-    positions.set(id, { id, x: column(2), y: index * rowStep });
-  });
-
-  return positions;
+  return { positions, width: Math.max(0, x - COLUMN_GAP), height: tallest };
 }

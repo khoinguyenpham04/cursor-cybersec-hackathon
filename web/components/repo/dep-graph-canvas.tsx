@@ -5,7 +5,13 @@ import { Controls } from "@/components/ai-elements/controls";
 import { Node } from "@/components/ai-elements/node";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { layoutDeps, NODE_WIDTH } from "@/lib/graph-layout";
+import {
+  buildHierarchy,
+  clusterId,
+  type DepCluster,
+  packageId,
+} from "@/lib/dep-hierarchy";
+import { layoutTiers, NODE_WIDTH } from "@/lib/graph-layout";
 import { cn } from "@/lib/utils";
 import {
   type Edge,
@@ -16,7 +22,14 @@ import {
   ReactFlowProvider,
   useReactFlow,
 } from "@xyflow/react";
-import { ExternalLinkIcon, PackageIcon, ShieldAlertIcon, XIcon } from "lucide-react";
+import {
+  ChevronDownIcon,
+  ChevronRightIcon,
+  ExternalLinkIcon,
+  PackageIcon,
+  ShieldAlertIcon,
+  XIcon,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 export interface DepVuln {
@@ -85,7 +98,7 @@ function RootNodeCard({ data }: { data: { name: string; lockfile: string; packag
         <PackageIcon className="size-4 shrink-0 text-primary" />
         <span className="min-w-0 flex-1 truncate font-medium text-sm">{data.name}</span>
       </div>
-      <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
+      <p className="mt-0.5 truncate font-mono text-muted-foreground text-xs">
         {data.lockfile} · {data.packages} pkgs
       </p>
     </Node>
@@ -120,7 +133,7 @@ function DepNodeCard({
           </Badge>
         )}
       </div>
-      <p className="mt-0.5 flex items-center gap-1.5 truncate font-mono text-[11px] text-muted-foreground">
+      <p className="mt-0.5 flex items-center gap-1.5 truncate font-mono text-muted-foreground text-xs">
         {pkg.version}
         {pkg.dev && <span className="text-[10px]">dev</span>}
       </p>
@@ -128,7 +141,47 @@ function DepNodeCard({
   );
 }
 
-const nodeTypes = { root: RootNodeCard, pkg: DepNodeCard };
+function ClusterNodeCard({
+  data,
+}: {
+  data: { cluster: DepCluster; expanded: boolean };
+}) {
+  const { cluster, expanded } = data;
+  return (
+    <Node
+      className={cn(
+        "h-14 w-58 cursor-pointer justify-center gap-0 overflow-hidden border-l-2 border-l-muted-foreground/40 border-dashed px-3 py-0 transition-shadow hover:shadow-md",
+        expanded && "border-l-primary bg-muted/40",
+      )}
+      handles={{ target: false, source: false }}
+    >
+      <Handle position={Position.Left} type="target" />
+      <Handle position={Position.Right} type="source" />
+      <div className="flex items-center gap-2">
+        {expanded ? (
+          <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
+        ) : (
+          <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground" />
+        )}
+        <span className="min-w-0 flex-1 truncate font-medium text-sm">
+          {cluster.label}
+        </span>
+        <Badge className="text-[10px]" variant="secondary">
+          {cluster.packages.length}
+        </Badge>
+      </div>
+      <p className="mt-0.5 truncate pl-5 text-muted-foreground text-xs">
+        {cluster.packages.length} packages{cluster.devOnly && " · dev"}
+      </p>
+    </Node>
+  );
+}
+
+const nodeTypes = {
+  root: RootNodeCard,
+  pkg: DepNodeCard,
+  cluster: ClusterNodeCard,
+};
 
 interface PkgDetail {
   provenance?: {
@@ -144,51 +197,123 @@ interface PkgDetail {
 
 function DepsInner({ data }: { data: DepGraphData }) {
   const [selected, setSelected] = useState<DepPackage | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [detail, setDetail] = useState<PkgDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const { fitView } = useReactFlow();
 
+  const hierarchy = useMemo(() => buildHierarchy(data.packages), [data]);
+
   const { nodes, edges } = useMemo(() => {
-    const positions = layoutDeps(data);
+    // Tier 1 holds the collapsed view: clusters, lone scoped packages, and
+    // every risky package. Tier 2 only exists for expanded cluster members.
+    const tier1 = [
+      ...hierarchy.risky.map(packageId),
+      ...hierarchy.clusters.map((cluster) => cluster.id),
+      ...hierarchy.standalone.map(packageId),
+    ];
+    const expandedMembers = hierarchy.clusters
+      .filter((cluster) => expanded.has(cluster.id))
+      .flatMap((cluster) => cluster.packages);
+    const tier2 = expandedMembers.map(packageId);
+
+    const { positions } = layoutTiers([
+      data.roots.map((root) => root.id),
+      tier1,
+      tier2,
+    ]);
+
+    const at = (id: string) => positions.get(id) ?? { x: 0, y: 0 };
+    const isSelected = (pkg: DepPackage) =>
+      selected?.name === pkg.name && selected?.version === pkg.version;
+
     const rootNodes: FlowNode[] = data.roots.map((root) => ({
       id: root.id,
       type: "root",
-      position: positions.get(root.id) ?? { x: 0, y: 0 },
+      position: at(root.id),
       data: root,
       width: NODE_WIDTH,
       draggable: false,
     }));
-    const pkgNodes: FlowNode[] = data.packages.map((pkg) => {
-      const id = `${pkg.name}@${pkg.version}`;
-      return {
-        id,
-        type: "pkg",
-        position: positions.get(id) ?? { x: 0, y: 0 },
-        data: {
-          pkg,
-          selected:
-            selected?.name === pkg.name && selected?.version === pkg.version,
-        },
-        width: NODE_WIDTH,
-        draggable: false,
-      };
-    });
-    const flowEdges: Edge[] = data.edges.map((edge, index) => ({
-      id: `d${index}`,
-      source: edge.from,
-      target: edge.to,
-      label: edge.requirement || undefined,
-      labelShowBg: true,
-      labelStyle: { fontSize: 9, fill: "var(--muted-foreground)" },
-      labelBgStyle: { fill: "var(--background)", fillOpacity: 0.85 },
-      style: { stroke: "var(--border)", strokeWidth: 1.25 },
-      markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12 },
+
+    const clusterNodes: FlowNode[] = hierarchy.clusters.map((cluster) => ({
+      id: cluster.id,
+      type: "cluster",
+      position: at(cluster.id),
+      data: { cluster, expanded: expanded.has(cluster.id) },
+      width: NODE_WIDTH,
+      draggable: false,
     }));
-    return { nodes: [...rootNodes, ...pkgNodes], edges: flowEdges };
-  }, [data, selected]);
+
+    const shown = [...hierarchy.risky, ...hierarchy.standalone, ...expandedMembers];
+    const pkgNodes: FlowNode[] = shown.map((pkg) => ({
+      id: packageId(pkg),
+      type: "pkg",
+      position: at(packageId(pkg)),
+      data: { pkg: pkg as DepPackage, selected: isSelected(pkg as DepPackage) },
+      width: NODE_WIDTH,
+      draggable: false,
+    }));
+
+    // Root edges re-point at whichever node actually represents the package:
+    // the package itself when visible, otherwise its cluster.
+    const clusterOf = new Map<string, string>();
+    for (const cluster of hierarchy.clusters) {
+      for (const pkg of cluster.packages) {
+        clusterOf.set(packageId(pkg), cluster.id);
+      }
+    }
+    const visible = new Set([
+      ...rootNodes.map((node) => node.id),
+      ...clusterNodes.map((node) => node.id),
+      ...pkgNodes.map((node) => node.id),
+    ]);
+
+    const seen = new Set<string>();
+    const flowEdges: Edge[] = [];
+    for (const edge of data.edges) {
+      const target = visible.has(edge.to)
+        ? edge.to
+        : (clusterOf.get(edge.to) ?? null);
+      if (!target) continue;
+      const key = `${edge.from}->${target}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      // Version ranges are deliberately NOT drawn on edges: with 60 of them
+      // the labels swamp the cards. The requirement shows in the detail panel.
+      flowEdges.push({
+        id: `d-${key}`,
+        source: edge.from,
+        target,
+        data: { requirement: edge.requirement },
+        style: { stroke: "var(--border)", strokeWidth: 1.25, opacity: 0.55 },
+        markerEnd: { type: MarkerType.ArrowClosed, width: 12, height: 12 },
+      });
+    }
+    // Cluster → member edges make the expansion legible as a hierarchy.
+    for (const cluster of hierarchy.clusters) {
+      if (!expanded.has(cluster.id)) continue;
+      for (const pkg of cluster.packages) {
+        flowEdges.push({
+          id: `c-${cluster.id}-${packageId(pkg)}`,
+          source: cluster.id,
+          target: packageId(pkg),
+          // Expansion edges are the ones the user just asked for: draw them
+          // stronger than the ambient root → dependency fan.
+          style: { stroke: "var(--primary)", strokeWidth: 1.25, opacity: 0.7 },
+          markerEnd: { type: MarkerType.ArrowClosed, width: 10, height: 10 },
+        });
+      }
+    }
+
+    return {
+      nodes: [...rootNodes, ...clusterNodes, ...pkgNodes],
+      edges: flowEdges,
+    };
+  }, [data, hierarchy, expanded, selected]);
 
   useEffect(() => {
-    const timer = setTimeout(() => fitView({ padding: 0.15, duration: 300 }), 60);
+    const timer = setTimeout(() => fitView({ padding: 0.12, duration: 300, minZoom: 0.55, maxZoom: 1.1 }), 60);
     return () => clearTimeout(timer);
   }, [data, fitView]);
 
@@ -227,12 +352,21 @@ function DepsInner({ data }: { data: DepGraphData }) {
       <Canvas
         edges={edges}
         fitView
-        fitViewOptions={{ padding: 0.15 }}
+        fitViewOptions={{ padding: 0.12, minZoom: 0.55, maxZoom: 1.1 }}
         nodeTypes={nodeTypes}
         nodes={nodes}
         nodesConnectable={false}
         nodesDraggable={false}
         onNodeClick={(_, node) => {
+          if (node.id.startsWith(clusterId(""))) {
+            setExpanded((current) => {
+              const next = new Set(current);
+              if (next.has(node.id)) next.delete(node.id);
+              else next.add(node.id);
+              return next;
+            });
+            return;
+          }
           const pkg = data.packages.find(
             (candidate) => `${candidate.name}@${candidate.version}` === node.id,
           );
@@ -271,6 +405,17 @@ function DepsInner({ data }: { data: DepGraphData }) {
             <Badge className="text-[10px]" variant={selected.direct ? "default" : "secondary"}>
               {selected.direct ? "direct" : "transitive"}
             </Badge>
+            {(() => {
+              // The declared range lives here rather than on the edge.
+              const requirement = data.edges.find(
+                (edge) => edge.to === `${selected.name}@${selected.version}`,
+              )?.requirement;
+              return requirement ? (
+                <Badge className="font-mono text-[10px]" variant="outline">
+                  {requirement}
+                </Badge>
+              ) : null;
+            })()}
             {selected.dev && (
               <Badge className="text-[10px]" variant="outline">
                 dev
