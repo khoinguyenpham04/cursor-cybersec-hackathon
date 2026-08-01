@@ -8,12 +8,22 @@ import {
   ensureCampaignDemoSession,
 } from "@/lib/campaign-demo";
 import {
+  DEMO_DEFAULT_PR,
+  DEMO_SEQUENCE_PRS,
+  demoPrUrl,
+  isDemoRepo,
+} from "@/lib/fixtures/boiling-frog";
+import { formatPrRef, parsePrRef } from "@/lib/pr";
+import {
   caseKind,
   casePath,
   filterRepoSessions,
+  newSessionId,
+  saveSession,
   useReviewSessions,
 } from "@/lib/sessions";
 import {
+  ExternalLinkIcon,
   GitPullRequestIcon,
   PlusIcon,
   ShieldAlertIcon,
@@ -40,10 +50,27 @@ export function RepoCases({ owner, repo }: { owner: string; repo: string }) {
     [sessions, owner, repo],
   );
   const [showReviewForm, setShowReviewForm] = useState(false);
+  const showDemoSequence = isDemoRepo(owner, repo);
 
   function startCampaign() {
     const session = ensureCampaignDemoSession(owner, repo);
     router.push(campaignCasePath(owner, repo, session.id));
+  }
+
+  function openDemoPr(prNumber: number) {
+    const pr = `${owner}/${repo}#${prNumber}`;
+    const ref = parsePrRef(pr);
+    if (!ref) return;
+    const session = {
+      id: newSessionId(),
+      kind: "review" as const,
+      pr,
+      title: formatPrRef(ref),
+      createdAt: Date.now(),
+      repo: `${owner}/${repo}`,
+    };
+    saveSession(session);
+    router.push(casePath(session));
   }
 
   return (
@@ -53,7 +80,9 @@ export function RepoCases({ owner, repo }: { owner: string; repo: string }) {
           <div className="min-w-0 space-y-1">
             <h2 className="font-semibold text-lg">Cases</h2>
             <p className="text-muted-foreground text-sm text-pretty">
-              PR reviews and campaign investigations for this repository.
+              {showDemoSequence
+                ? "Demo spine: open PR #9 (default), then Investigate sequence."
+                : "PR reviews and campaign investigations for this repository."}
             </p>
           </div>
           <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
@@ -61,7 +90,7 @@ export function RepoCases({ owner, repo }: { owner: string; repo: string }) {
               className="w-full gap-1.5 sm:w-auto"
               onClick={() => setShowReviewForm((open) => !open)}
               size="sm"
-              variant={showReviewForm ? "secondary" : "default"}
+              variant={showReviewForm ? "secondary" : "outline"}
             >
               <PlusIcon className="size-3.5" />
               New review
@@ -76,6 +105,57 @@ export function RepoCases({ owner, repo }: { owner: string; repo: string }) {
             </Button>
           </div>
         </div>
+
+        {showDemoSequence && (
+          <section className="space-y-3 rounded-lg border px-4 py-3">
+            <div className="space-y-1">
+              <h3 className="font-medium text-sm">Boiling-frog sequence</h3>
+              <p className="text-muted-foreground text-xs text-pretty">
+                Live substrate PRs #8–#11. For a short pitch, open{" "}
+                <span className="font-medium text-foreground">#9</span> only,
+                then run Investigate sequence.
+              </p>
+            </div>
+            <ul className="flex flex-col gap-2">
+              {DEMO_SEQUENCE_PRS.map((entry) => {
+                const recommended = entry.number === DEMO_DEFAULT_PR;
+                return (
+                  <li
+                    className="flex flex-wrap items-center gap-2"
+                    key={entry.number}
+                  >
+                    <Button
+                      className="gap-1.5"
+                      onClick={() => openDemoPr(entry.number)}
+                      size="sm"
+                      variant={recommended ? "default" : "outline"}
+                    >
+                      <GitPullRequestIcon className="size-3.5" />
+                      #{entry.number}
+                      {recommended ? " · start here" : ""}
+                    </Button>
+                    <span className="min-w-0 flex-1 text-sm text-pretty">
+                      <span className="font-medium">{entry.title}</span>
+                      <span className="text-muted-foreground">
+                        {" "}
+                        — {entry.blurb}
+                      </span>
+                    </span>
+                    <a
+                      className="inline-flex items-center gap-1 text-muted-foreground text-xs underline-offset-4 hover:underline"
+                      href={demoPrUrl(entry.number)}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      GitHub
+                      <ExternalLinkIcon className="size-3" />
+                    </a>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
 
         {showReviewForm && (
           <div className="rounded-lg border p-4">
@@ -127,7 +207,8 @@ export function RepoCases({ owner, repo }: { owner: string; repo: string }) {
             })}
           </div>
         ) : (
-          !showReviewForm && (
+          !showReviewForm &&
+          !showDemoSequence && (
             <p className="text-muted-foreground text-sm">
               No cases yet. Start a PR review or investigate the boiling-frog
               fixture sequence.

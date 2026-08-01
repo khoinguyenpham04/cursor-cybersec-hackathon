@@ -1,24 +1,25 @@
-# Supply-chain campaign detector
+# Orca
 
-Multi-agent [Flue](https://flueframework.com) product that maps a repository,
-reviews individual PRs, and detects **open-source supply-chain campaigns across
-PR sequences** — composition that single-PR scanners miss.
+Multi-agent [Flue](https://flueframework.com) product that **orchestrates**
+repo scan, PR review, and **supply-chain campaign detection across PR
+sequences** — composition that single-PR scanners miss.
 
-**Ingest → Orchestrate → Act:** scan a repo, investigate a fixture campaign
-(`fixture-boiling-frog`), and surface scored policy actions in the UI.
+**Scan → Review → Investigate:** map a repo, open one green PR, then run the
+campaign case (`fixture-boiling-frog`) for scored policy actions.
 
-Walkthrough status and remaining work: see [`PROGRESS.md`](./PROGRESS.md).
+Walkthrough status: [`PROGRESS.md`](./PROGRESS.md) · Runbook: [`DEMO.md`](./DEMO.md).
 
 ## Demo walkthrough (one pass)
 
 With both servers running (below):
 
-1. **PR review** — Open http://localhost:3000 → **Demo review** (offline mock,
-   no API keys). Or paste a live `owner/repo#N` for a real Flue review.
-2. **Repo scan** — Home → **Scan this app’s own repo** (or paste `owner/repo`)
-   → Overview → **Run scan** (Map) → **Build graph** (Dependencies).
-3. **Campaign** — Overview or Cases → **Investigate sequence** → wait for
-   `submit_campaign` → score, trail, recommended actions + transcript.
+1. **Scan** — http://localhost:3000 → **Start demo spine** → Overview →
+   **1 · Run scan** → Map → **Build graph**.
+2. **Review** — Cases → open live PR **#9** (demo default; #8–#11 listed).
+3. **Investigate** — **Investigate sequence** → Orchestration → Report +
+   Escalate. Overview tab explains the fixture ↔ #8–#11 mapping.
+
+Offline backup (wrong story for the pitch): home → **Offline review backup**.
 
 Safety net (no LLM): `cd agent && npm run eval:fixture`.
 

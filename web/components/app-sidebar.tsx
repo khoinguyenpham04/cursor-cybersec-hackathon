@@ -26,6 +26,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { PRODUCT_NAME } from "@/lib/brand"
 import { parsePrRef } from "@/lib/pr"
 import { removeRepo, useRepos } from "@/lib/repos"
 import type { ReviewVerdict } from "@/lib/review"
@@ -39,8 +40,8 @@ import { cn } from "@/lib/utils"
 import {
   ArrowSquareOutIcon,
   BookOpenIcon,
-  ChartLineIcon,
   DotsThreeOutlineIcon,
+  FishIcon,
   GitPullRequestIcon,
   PlusCircleIcon,
   ShieldWarningIcon,
@@ -55,11 +56,6 @@ const verdictDot: Record<ReviewVerdict, { className: string; label: string }> = 
 }
 
 const navSecondary = [
-  {
-    title: "Dashboard demo",
-    url: "/dashboard",
-    icon: <ChartLineIcon />,
-  },
   {
     title: "Flue docs",
     url: "https://flueframework.com",
@@ -91,8 +87,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               className="data-[slot=sidebar-menu-button]:p-1.5!"
               render={<Link href="/" />}
             >
-              <GitPullRequestIcon className="size-5! text-primary" />
-              <span className="text-base font-semibold">PR Reviewer</span>
+              <FishIcon className="size-5! text-primary" weight="duotone" />
+              <span className="text-base font-semibold">{PRODUCT_NAME}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -107,7 +103,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   render={<Link href="/" />}
                 >
                   <PlusCircleIcon />
-                  <span>New scan</span>
+                  <span>New workspace</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

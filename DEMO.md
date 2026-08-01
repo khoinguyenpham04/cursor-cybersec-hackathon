@@ -1,6 +1,8 @@
-# Demo runbook — boiling-frog campaign
+# Demo runbook — Orca / boiling-frog campaign
 
-One walkthrough: **scan the repo → review four “green” PRs → investigate the campaign**.
+Product: **Orca** — orchestrate scan → review → campaign investigation.
+
+One walkthrough: **scan the repo → review PR #9 (default) → investigate the campaign**.
 
 User story: [#7](https://github.com/khoinguyenpham04/cursor-cybersec-hackathon/issues/7)  
 Product tracker: [`PROGRESS.md`](./PROGRESS.md) · Setup: [`README.md`](./README.md)
@@ -69,28 +71,24 @@ Open http://localhost:3000
 
 ### Beat 1 — Repo scan
 
-1. Home → **Scan this app’s own repo** (or paste `khoinguyenpham04/cursor-cybersec-hackathon`).
-2. Overview → **Run scan** → show Map.
-3. **Build graph** → Dependencies (mention `demo/payments-api` when visible).
+1. Home → **Start demo spine** (or paste `khoinguyenpham04/cursor-cybersec-hackathon`).
+2. Overview → **1 · Run scan** → show Map.
+3. **Build graph** → Dependencies.
 
 **Say:** “We ingest the repo once, then keep Map/Deps as durable context.”
 
-### Beat 2 — Review the sequence
+### Beat 2 — Review one green PR
 
-Open each PR as a **live review** in the product (`owner/repo#N`):
+1. Cases → boiling-frog sequence → open **#9 · start here** (transitive postinstall).
+2. Optional deep dive: #8 / #10 / #11 from the same list (or GitHub tabs).
 
-1. **#8** — Approve-ish / low signal. “Looks like a helper.”
-2. **#9** — Still no CVE on the direct dep. Point at transitive **postinstall**.
-3. **#10** — Workflow blast radius: write + OIDC + billing secret.
-4. **#11** — Helper now sits on the billing / token path.
+**Say:** “Alone it looks fine. The risk is the trail.”
 
-**Say:** “Each PR alone is plausible. The risk is the trail.”
-
-Backup if models/GitHub flake: Home → **Demo review** (offline mock).
+Backup if models/GitHub flake: Home → **Offline review backup** (mock; not the campaign story).
 
 ### Beat 3 — Campaign (case surface)
 
-1. Same repo → Overview or Cases → **Investigate sequence**.
+1. Same repo → **3 · Investigate sequence** (Overview) or Cases → **Investigate sequence**.
 2. Case opens on **Orchestration** — watch `load_fixture_case` → `investigate_case` → specialists (from coverage) → `submit_campaign`.
 3. Auto-lands on **Report** — walk score, trail, narrative, recommended actions; click **Escalate** (demo-safe, not sent to GitHub).
 4. **Overview** tab — fixture caveat + timeline mapped to demo PRs #8–#11.
@@ -141,4 +139,4 @@ demo/payments-api/
 - [ ] Wire case ingest so Investigate sequence uses PR #8–#11 numbers
 - [x] Campaign case tabs (Overview · Orchestration · Report · Transcript) + escalate
 - [ ] Tiny root CI: `eval:fixture` + web typecheck (not required for the demo)
-- [ ] Brand cleanup / remove `/dashboard` sample
+- [x] Brand as Orca / hide `/dashboard` / Cases #8–#11 quick-links

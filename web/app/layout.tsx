@@ -16,8 +16,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PR Reviewer",
-  description: "AI code review for GitHub pull requests, powered by Flue",
+  title: "Orca",
+  description:
+    "Orchestrate supply-chain campaign detection across PR sequences — scan, review, investigate.",
 };
 
 export default function RootLayout({
