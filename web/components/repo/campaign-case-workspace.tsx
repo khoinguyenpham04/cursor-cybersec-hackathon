@@ -10,6 +10,7 @@ import {
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
 import { CaseOrchestration } from "@/components/case/case-orchestration";
+import { CaseOverview } from "@/components/case/case-overview";
 import { CaseShell } from "@/components/case/case-shell";
 import { Transcript } from "@/components/review/transcript";
 import { Badge } from "@/components/ui/badge";
@@ -220,20 +221,11 @@ export function CampaignCaseWorkspace({
         <CaseOrchestration messages={agent.messages} status={agent.status} />
       }
       overview={
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-6 lg:px-6">
-          <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">
-            <p className="font-medium">Supply-chain campaign demo</p>
-            <p className="mt-1 text-muted-foreground text-pretty">
-              Three green-looking PRs compose into one campaign. The orchestrator
-              runs <code className="text-xs">investigate_case</code> then{" "}
-              <code className="text-xs">submit_campaign</code> on{" "}
-              <code className="text-xs">{ledgerCaseId}</code>.
-            </p>
-          </div>
-          <p className="text-muted-foreground text-sm text-pretty">
-            Sequence narrative and fixture caveat expand in a follow-up commit.
-          </p>
-        </div>
+        <CaseOverview
+          ledgerCaseId={ledgerCaseId}
+          owner={owner}
+          repo={repo}
+        />
       }
       report={
         <div className="mx-auto w-full max-w-2xl px-4 py-6 lg:px-6">
