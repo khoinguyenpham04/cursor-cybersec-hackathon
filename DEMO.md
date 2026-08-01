@@ -91,10 +91,10 @@ Backup if models/GitHub flake: Home → **Offline review backup** (mock; not the
 1. Same repo → **3 · Investigate sequence** (Overview) or Cases → **Investigate sequence**.
 2. Case opens on **Orchestration** — watch `load_fixture_case` → `investigate_case` → specialists (from coverage) → `submit_campaign`.
 3. Auto-lands on **Report** — walk score, trail, narrative, recommended actions; click **Escalate** (demo-safe, not sent to GitHub).
-4. **Overview** tab — fixture caveat + timeline mapped to demo PRs #8–#11.
+4. **Overview** tab — seeded-case caveat + native timeline **#8→#9→#10→#11**.
 5. **Transcript** remains the escape hatch if you need to nudge the agent.
 
-**Say (important):** Campaign facts today come from the ledger fixture (`fixture-boiling-frog`), which matches this PR story. Live ingest of GitHub PR history is the next product step — these four PRs are the substrate we scan/review now and will bind later.
+**Say (important):** Campaign facts come from the seeded ledger case `demo-self-repo-8-11` (trail matches these PRs). Not runtime GitHub mining yet — that is the next product step.
 
 Optional safety net beforehand: `cd agent && npm run eval:fixture`.
 
@@ -128,7 +128,7 @@ demo/payments-api/
 - Use #8–#11 as the canonical live review targets
 
 **Don’t**
-- Claim the campaign page is mining these live PRs yet (fixture caveat)
+- Claim the campaign page is mining these live PRs at runtime (seeded bundle)
 - Merge the demo PRs into `main` mid-pitch if it confuses the product tree
 - Run `quiet-utils` postinstall against anything sensitive (it only `console.log`s)
 
@@ -136,7 +136,8 @@ demo/payments-api/
 
 ## After the pitch (optional)
 
-- [ ] Wire case ingest so Investigate sequence uses PR #8–#11 numbers
+- [x] Seeded case `demo-self-repo-8-11` bound to Investigate on this product repo
+- [ ] Runtime GitHub PR mining into Case Bundles
 - [x] Campaign case tabs (Overview · Orchestration · Report · Transcript) + escalate
 - [ ] Tiny root CI: `eval:fixture` + web typecheck (not required for the demo)
 - [x] Brand as Orca / hide `/dashboard` / Cases #8–#11 quick-links

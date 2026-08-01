@@ -5,7 +5,8 @@ repo scan, PR review, and **supply-chain campaign detection across PR
 sequences** — composition that single-PR scanners miss.
 
 **Scan → Review → Investigate:** map a repo, open one green PR, then run the
-campaign case (`fixture-boiling-frog`) for scored policy actions.
+seeded campaign case (`demo-self-repo-8-11` = PRs #8–#11) for scored policy
+actions.
 
 Walkthrough status: [`PROGRESS.md`](./PROGRESS.md) · Runbook: [`DEMO.md`](./DEMO.md).
 
@@ -17,7 +18,7 @@ With both servers running (below):
    **1 · Run scan** → Map → **Build graph**.
 2. **Review** — Cases → open live PR **#9** (demo default; #8–#11 listed).
 3. **Investigate** — **Investigate sequence** → Orchestration → Report +
-   Escalate. Overview tab explains the fixture ↔ #8–#11 mapping.
+   Escalate (trail **#8→#9→#10→#11** from seeded case `demo-self-repo-8-11`).
 
 Offline backup (wrong story for the pitch): home → **Offline review backup**.
 
@@ -31,9 +32,10 @@ Safety net (no LLM): `cd agent && npm run eval:fixture`.
 | `/agents/pr-reviewer` | Single-PR adversarial review (`submit_review`) |
 | `/agents/campaign-orchestrator` | Thin parent + specialists over a Risk Ledger; fan-out via `investigate_case` → `submit_campaign` |
 
-Orchestrate reads **Case Bundles** from `agent/src/ledger`. Ingest owns writing
-real cases later; today the shipped fixture is `fixture-boiling-frog`
-(PRs 412 → 419 → 430 on `acme/payments-api`).
+Orchestrate reads **Case Bundles** from `agent/src/ledger`. On this product
+repo, Investigate loads `demo-self-repo-8-11` (PRs #8–#11). Classic offline twin
+`fixture-boiling-frog` (412 → 419 → 430 on `acme/payments-api`) remains for
+other repos. Bundles are seeded — not mined from GitHub at runtime yet.
 
 `investigate_case` is the control plane: it dispatches specialists (via harness
 `task`), **verifies ledger-backed coverage for that run**, persists an

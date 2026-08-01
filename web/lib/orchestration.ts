@@ -43,7 +43,7 @@ const SPECIALISTS = [
 ] as const;
 
 const LABELS: Record<string, string> = {
-  load_fixture_case: "Load fixture case",
+  load_fixture_case: "Load case bundle",
   read_case: "Read case bundle",
   set_review_context: "Set review context",
   investigate_case: "Investigate case",

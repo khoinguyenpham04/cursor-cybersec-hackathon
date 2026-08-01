@@ -4,7 +4,7 @@ Goal: a single, judge-ready path that shows **PR review → repo scan → campai
 page** without dead ends. Update checkboxes as we close items. Keep this file
 on `main`.
 
-Last reviewed: 2026-08-01 (Orca clarity — brand + demo spine).
+Last reviewed: 2026-08-01 (case-ingest: demo-self-repo-8-11 bound to Investigate).
 
 ---
 
@@ -14,14 +14,14 @@ Last reviewed: 2026-08-01 (Orca clarity — brand + demo spine).
 |---|---|---|---|
 | 1 | **Repo scan** | `/` → **Start demo spine** → Overview → Run scan → Map → Build graph | Mostly |
 | 2 | **PR review** | Cases → boiling-frog **#9** (default); #8–#11 listed | Mostly |
-| 3 | **Campaign** | **Investigate sequence** → Orchestration → Report + Escalate | Ready |
+| 3 | **Campaign** | **Investigate sequence** → `demo-self-repo-8-11` (#8–#11) → Report + Escalate | Ready |
 
 Script for rehearsals (copy into a runbook slide if needed):
 
 1. Open http://localhost:3000 → **Start demo spine** → **1 · Run scan** → Map → Build graph.
 2. Cases → open **#9 · start here** (optional: glance #8/#10/#11).
-3. **Investigate sequence** → Orchestration → Report + Escalate; Overview shows
-   fixture caveat and demo PR #8–#11 mapping.
+3. **Investigate sequence** → Orchestration → Report trail **#8→#9→#10→#11** +
+   Escalate; Overview shows seeded-case caveat for `demo-self-repo-8-11`.
 4. Optional: `cd agent && npm run eval:fixture` beforehand (no LLM burn).
 
 ---
@@ -41,7 +41,8 @@ Script for rehearsals (copy into a runbook slide if needed):
 - [x] Campaign Overview timeline + fixture caveat + demo PR #8–#11 labels
 - [x] Artifact Report + Confirmation Escalate (localStorage, demo-safe)
 - [x] Embedded review cases use the same CaseShell tabs
-- [x] Ledger fixture `fixture-boiling-frog` + `npm run eval:fixture`
+- [x] Ledger fixtures `fixture-boiling-frog` + `demo-self-repo-8-11` + `eval:fixture`
+- [x] SELF_REPO Investigate binds to `demo-self-repo-8-11` (trail #8–#11)
 - [x] SSR-safe Flue abort, session kind inference, CTA dedupe (PR #6 hardening)
 - [x] Root README updated to match wired UI (this pass)
 
@@ -56,8 +57,7 @@ Script for rehearsals (copy into a runbook slide if needed):
 - [ ] **Preflight checklist** before demos: agent `/api/health`, keys present,
       `eval:fixture` green, Flue DB not wedged.
 - [x] **Surface fixture caveat** clearly on the campaign Overview tab.
-- [ ] **Pick one canonical live PR** for the non-mock review beat; document it
-      in this file under “Rehearsal notes”.
+- [x] **Pick one canonical live PR** — `#9` (documented under Rehearsal notes).
 
 ### P1 — Narrative (makes the product click)
 
@@ -74,8 +74,9 @@ Script for rehearsals (copy into a runbook slide if needed):
       call mid-pitch (or document “rescan only if empty”).
 - [ ] **Offline mock for Map/Deps** (mirror mock-review) so beat 2 survives
       GitHub/model outages.
-- [ ] **Case ingest path** (even a second fixture or JSON upload) so “Ingest”
-      isn’t only a README word.
+- [x] **Case ingest path (v1)** — seeded `demo-self-repo-8-11` bound to
+      Investigate on SELF_REPO (not runtime GitHub mining).
+- [ ] **Runtime GitHub → Case Bundle** mining for arbitrary repos.
 - [ ] **Stale agent docs** — `agent/README.md` / `AGENTS.md` still mention
       hello-agent era; align with three mounted routes.
 
@@ -91,7 +92,7 @@ Script for rehearsals (copy into a runbook slide if needed):
 
 | Constraint | Implication |
 |---|---|
-| Campaign facts = fixture only | URL repo is a bookmark shell; don’t claim live PR mining yet |
+| Campaign facts = seeded bundles | SELF_REPO → `demo-self-repo-8-11`; don’t claim runtime GitHub mining |
 | Scan needs model + GitHub | Prefer SELF_REPO; have mock review as beat-1 backup |
 | Deps need lockfile fetch | Public repos work best; token helps rate limits |
 | No agent auth | Localhost only unless middleware added |
@@ -115,7 +116,7 @@ _Fill in as we practice._
 
 ## Suggested next PR slices
 
-1. ~~`ui/brand-cleanup`~~ — Orca + spine + Cases #8–#11 (this pass).
-2. `demo/offline-scan` — mock Map/Deps path for zero-network pitch.
-3. `ingest/fixture-loader` — bind Investigate sequence to live #8–#11.
-4. Rehearse cold + fill Rehearsal notes (P0).
+1. ~~`ui/brand-cleanup`~~ / ~~seeded case bind~~ — done.
+2. Rehearse cold + fill Rehearsal notes (P0).
+3. `demo/offline-scan` — mock Map/Deps for zero-network pitch.
+4. Runtime GitHub → Case Bundle mining.
