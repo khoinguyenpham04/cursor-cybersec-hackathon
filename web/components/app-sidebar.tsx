@@ -27,7 +27,9 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { parsePrRef } from "@/lib/pr"
+import type { ReviewVerdict } from "@/lib/review"
 import { removeSession, useReviewSessions } from "@/lib/sessions"
+import { cn } from "@/lib/utils"
 import {
   ArrowSquareOutIcon,
   BookOpenIcon,
@@ -37,6 +39,12 @@ import {
   PlusCircleIcon,
   TrashIcon,
 } from "@phosphor-icons/react"
+
+const verdictDot: Record<ReviewVerdict, { className: string; label: string }> = {
+  approve: { className: "bg-emerald-500", label: "Approved" },
+  comment: { className: "bg-sky-500", label: "Commented" },
+  request_changes: { className: "bg-red-500", label: "Changes requested" },
+}
 
 const navSecondary = [
   {
@@ -107,9 +115,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <SidebarMenuButton
                     isActive={session.id === activeId}
                     render={<Link href={`/review/${session.id}`} />}
+                    title={session.prTitle ?? session.title}
                   >
                     <GitPullRequestIcon />
-                    <span>{session.title}</span>
+                    <span className="truncate">
+                      {session.prTitle ?? session.title}
+                    </span>
+                    {session.verdict && (
+                      <span
+                        aria-label={verdictDot[session.verdict].label}
+                        className={cn(
+                          "ml-auto size-1.5 shrink-0 rounded-full",
+                          verdictDot[session.verdict].className,
+                        )}
+                        role="img"
+                        title={verdictDot[session.verdict].label}
+                      />
+                    )}
                   </SidebarMenuButton>
                   <DropdownMenu>
                     <DropdownMenuTrigger

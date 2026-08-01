@@ -26,7 +26,7 @@ import {
 } from "@/lib/mock-review";
 import { findPrRef, formatPrRef, parsePrRef } from "@/lib/pr";
 import { extractReview, type ReviewFinding } from "@/lib/review";
-import { getSession, saveSession } from "@/lib/sessions";
+import { getSession, saveSession, updateSession } from "@/lib/sessions";
 import { cn } from "@/lib/utils";
 import { useFlueAgent } from "@flue/react";
 import { ExternalLinkIcon, GitBranchIcon } from "lucide-react";
@@ -135,6 +135,17 @@ export function ReviewWorkspace({ sessionId }: { sessionId: string }) {
   const chatStatus = statusToChat[agent.status] ?? "ready";
   const working = chatStatus === "submitted" || chatStatus === "streaming";
   const review = useMemo(() => extractReview(agent.messages), [agent.messages]);
+
+  // Enrich the stored session as richer data arrives, so the sidebar can
+  // show the PR's real title and the review's verdict.
+  const prTitle = prData?.meta?.title;
+  useEffect(() => {
+    if (prTitle) updateSession(sessionId, { prTitle });
+  }, [prTitle, sessionId]);
+  const verdict = review?.verdict;
+  useEffect(() => {
+    if (verdict) updateSession(sessionId, { verdict });
+  }, [verdict, sessionId]);
 
   // Clicking a finding's path:line anchor switches to the Diff tab and
   // scrolls the anchored line into view (nonce re-triggers repeat jumps).
