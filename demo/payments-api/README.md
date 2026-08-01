@@ -6,6 +6,6 @@ User story: https://github.com/khoinguyenpham04/cursor-cybersec-hackathon/issues
 
 Sequence:
 1. Add `http-helper` ✅
-2. Bump + transitive `quiet-utils` postinstall (this PR)
-3. Expand release workflow permissions / secrets
+2. Bump + transitive `quiet-utils` postinstall ✅
+3. Expand release workflow permissions / secrets (this PR)
 4. Wire helper into billing sync
