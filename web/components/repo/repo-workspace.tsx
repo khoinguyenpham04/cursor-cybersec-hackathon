@@ -20,6 +20,7 @@ import {
   type DepGraphData,
 } from "@/components/repo/dep-graph-canvas";
 import { RepoMapCanvas } from "@/components/repo/repo-map-canvas";
+import { RepoOverview } from "@/components/repo/repo-overview";
 import { NewReviewForm } from "@/components/review/new-review-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ import { useFlueAgent } from "@flue/react";
 import {
   ExternalLinkIcon,
   GitPullRequestIcon,
+  LayoutDashboardIcon,
   MapIcon,
   PackageIcon,
   PlayIcon,
@@ -132,7 +134,17 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
     session.pr.includes(`${owner}/${repo}`),
   );
 
-  const [tab, setTab] = useState("map");
+  const [tab, setTab] = useState("overview");
+
+  const runScanFromOverview = useCallback(() => {
+    startScan(Boolean(scan));
+    setTab("map");
+  }, [scan, startScan]);
+
+  const buildDepsFromOverview = useCallback(() => {
+    void loadDeps(Boolean(deps));
+    setTab("deps");
+  }, [deps, loadDeps]);
 
   // Tool calls from the live scan, for the progress strip.
   const scanSteps = useMemo(() => {
@@ -171,10 +183,28 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
         />
         <div className="min-w-0 flex-1">
           <h1 className="truncate font-semibold text-sm">{repoRef}</h1>
-          {scan?.project.tagline && (
+          {tab === "overview" ? (
             <p className="truncate text-muted-foreground text-xs">
-              {scan.project.tagline}
+              {scan
+                ? `${scan.nodes.length} nodes`
+                : "Not scanned"}
+              {" · "}
+              {deps
+                ? deps.totals.vulnerable > 0
+                  ? `${deps.totals.vulnerable} vulnerable`
+                  : `${deps.totals.packages} packages`
+                : "No deps graph"}
+              {" · "}
+              {repoSessions.length > 0
+                ? `${repoSessions.length} case${repoSessions.length === 1 ? "" : "s"}`
+                : "No cases"}
             </p>
+          ) : (
+            scan?.project.tagline && (
+              <p className="truncate text-muted-foreground text-xs">
+                {scan.project.tagline}
+              </p>
+            )
           )}
         </div>
         {scan && (
@@ -212,6 +242,13 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
       >
         <div className="flex items-center gap-2 border-b px-4 lg:px-6">
           <TabsList className="h-10 bg-transparent p-0">
+            <TabsTrigger
+              className="gap-1.5 rounded-none border-transparent border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none"
+              value="overview"
+            >
+              <LayoutDashboardIcon className="size-3.5" />
+              Overview
+            </TabsTrigger>
             <TabsTrigger
               className="gap-1.5 rounded-none border-transparent border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none"
               value="map"
@@ -287,6 +324,22 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
             )}
           </div>
         </div>
+
+        {/* ------------------------------------------------------------ Overview */}
+        <TabsContent className="flex min-h-0 flex-1 flex-col" value="overview">
+          <RepoOverview
+            caseCount={repoSessions.length}
+            deps={deps}
+            depsChecked={depsChecked}
+            depsState={depsState}
+            onBuildDeps={buildDepsFromOverview}
+            onNewCase={() => setTab("reviews")}
+            onScan={runScanFromOverview}
+            scan={scan}
+            scanning={scanning}
+            scanReady={agent.historyReady}
+          />
+        </TabsContent>
 
         {/* ---------------------------------------------------------------- Map */}
         <TabsContent className="flex min-h-0 flex-1 flex-col" value="map">
