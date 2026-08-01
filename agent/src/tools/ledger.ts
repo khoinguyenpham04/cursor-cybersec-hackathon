@@ -8,6 +8,7 @@ import {
 	listCases,
 	listClaims,
 	listDeltas,
+	listFixtureIds,
 	loadFixture,
 	projectCaseForModel,
 	validateEvidenceRefs,
@@ -17,7 +18,7 @@ import {
 const caseIdInput = v.pipe(
 	v.string(),
 	v.regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/),
-	v.description('Ledger case id, e.g. fixture-boiling-frog'),
+	v.description('Ledger case id, e.g. demo-self-repo-8-11 or fixture-boiling-frog'),
 );
 
 const runIdInput = v.pipe(
@@ -128,15 +129,23 @@ export const listCaseClaims = defineTool({
 export const loadFixtureCase = defineTool({
 	name: 'load_fixture_case',
 	description:
-		'Seed the ledger from a built-in fixture (demo / offline). Prefer this when the user asks to review fixture-boiling-frog or a multi-PR campaign demo.',
+		'Seed the ledger from a built-in case bundle. Use demo-self-repo-8-11 for the product-repo sequence (PRs #8–#11), or fixture-boiling-frog for the classic offline acme story.',
 	input: v.object({ caseId: caseIdInput }),
 	async run({ data, log }): Promise<{ output: JsonValue }> {
 		try {
 			const bundle = loadFixture(data.caseId);
 			log.info(`Fixture loaded: ${bundle.caseId}`);
-			return { output: { loaded: true, caseId: bundle.caseId, triggerPr: bundle.triggerPr } };
+			return {
+				output: {
+					loaded: true,
+					caseId: bundle.caseId,
+					repo: bundle.repo,
+					triggerPr: bundle.triggerPr,
+					timelinePrs: bundle.timeline.map((t) => t.prNumber),
+				},
+			};
 		} catch (error) {
-			return { output: { error: (error as Error).message, available: ['fixture-boiling-frog'] } };
+			return { output: { error: (error as Error).message, available: listFixtureIds() } };
 		}
 	},
 });

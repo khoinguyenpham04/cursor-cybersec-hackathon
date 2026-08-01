@@ -1,0 +1,167 @@
+{
+  "caseId": "demo-self-repo-8-11",
+  "repo": "khoinguyenpham04/cursor-cybersec-hackathon",
+  "triggerPr": 11,
+  "createdAt": "2026-08-01T12:00:00.000Z",
+  "notes": [
+    "Bound to the live demo substrate: GitHub PRs #8 → #9 → #10 → #11 on this repo (demo/payments-api story).",
+    "Each PR alone looks Socket-green: no known CVE, no typosquat string match, no single-PR install script on a direct dep.",
+    "Composition across the sequence introduces install-time execution + Actions write + first contact with billing secrets."
+  ],
+  "timeline": [
+    {
+      "prNumber": 8,
+      "sha": "demo-pr8",
+      "title": "chore(deps): add http-helper for shared retry utilities",
+      "author": "contrib-a",
+      "mergedAt": null,
+      "filesTouched": [
+        "demo/payments-api/package.json",
+        "demo/payments-api/package-lock.json",
+        "demo/payments-api/src/lib/http.ts"
+      ],
+      "bodyPreview": "Small helper. No behavior change."
+    },
+    {
+      "prNumber": 9,
+      "sha": "demo-pr9",
+      "title": "chore(deps): bump http-helper and transitive utils",
+      "author": "contrib-a",
+      "mergedAt": null,
+      "filesTouched": ["demo/payments-api/package-lock.json"],
+      "bodyPreview": "Routine bump for security hygiene."
+    },
+    {
+      "prNumber": 10,
+      "sha": "demo-pr10",
+      "title": "ci: speed up release workflow",
+      "author": "contrib-a",
+      "mergedAt": null,
+      "filesTouched": ["demo/payments-api/.github/workflows/release.yml"],
+      "bodyPreview": "Unrelated CI cleanup."
+    },
+    {
+      "prNumber": 11,
+      "sha": "demo-pr11",
+      "title": "feat(billing): wire http-helper into billing sync",
+      "author": "contrib-a",
+      "mergedAt": null,
+      "filesTouched": ["demo/payments-api/src/billing/sync.ts"],
+      "bodyPreview": "Product feature — uses http-helper on the billing/token path."
+    }
+  ],
+  "capabilityDeltas": [
+    {
+      "id": "d1",
+      "prNumber": 8,
+      "kind": "dep_added",
+      "subject": "http-helper@1.0.0",
+      "detail": "Direct dependency added; no install scripts on this version.",
+      "facts": {
+        "direct": true,
+        "hasInstallScript": false,
+        "downloadCount": 1200,
+        "ageDays": 40
+      }
+    },
+    {
+      "id": "d2",
+      "prNumber": 9,
+      "kind": "dep_version_changed",
+      "subject": "http-helper@1.0.0→1.2.0",
+      "detail": "Version bump of direct dep; still no CVE.",
+      "facts": {
+        "from": "1.0.0",
+        "to": "1.2.0",
+        "vulnCount": 0
+      }
+    },
+    {
+      "id": "d3",
+      "prNumber": 9,
+      "kind": "dep_added",
+      "subject": "quiet-utils@0.4.1",
+      "detail": "New transitive dependency pulled in by http-helper@1.2.0.",
+      "facts": {
+        "direct": false,
+        "parent": "http-helper@1.2.0",
+        "hasInstallScript": false
+      }
+    },
+    {
+      "id": "d4",
+      "prNumber": 9,
+      "kind": "install_script",
+      "subject": "quiet-utils@0.4.1",
+      "detail": "Transitive package declares a postinstall script (not visible if only scanning direct deps).",
+      "facts": {
+        "script": "postinstall",
+        "command": "node ./scripts/setup.js",
+        "direct": false
+      }
+    },
+    {
+      "id": "d5",
+      "prNumber": 10,
+      "kind": "workflow_permissions",
+      "subject": "demo/payments-api/.github/workflows/release.yml",
+      "detail": "Workflow permissions expanded from contents:read to contents:write and id-token:write.",
+      "facts": {
+        "before": "contents:read",
+        "after": "contents:write,id-token:write",
+        "addsWrite": true
+      }
+    },
+    {
+      "id": "d6",
+      "prNumber": 10,
+      "kind": "workflow_secrets",
+      "subject": "demo/payments-api/.github/workflows/release.yml",
+      "detail": "Workflow now passes BILLING_API_KEY into a step that shells out.",
+      "facts": {
+        "secret": "BILLING_API_KEY",
+        "step": "sync-billing"
+      }
+    },
+    {
+      "id": "d7",
+      "prNumber": 11,
+      "kind": "network_hook",
+      "subject": "demo/payments-api/src/billing/sync.ts",
+      "detail": "First application use of http-helper inside the billing sync path that handles customer tokens.",
+      "facts": {
+        "path": "demo/payments-api/src/billing/sync.ts",
+        "usesPackage": "http-helper",
+        "touchesSecrets": true
+      }
+    }
+  ],
+  "packages": [
+    {
+      "name": "http-helper",
+      "version": "1.2.0",
+      "ecosystem": "npm",
+      "direct": true,
+      "dev": false,
+      "relation": "DIRECT",
+      "vulnIds": [],
+      "maintainers": ["contrib-a"],
+      "publishedAt": "2026-07-24T08:00:00.000Z",
+      "gapDaysFromPrevious": 4,
+      "signals": ["latest release", "single maintainer"]
+    },
+    {
+      "name": "quiet-utils",
+      "version": "0.4.1",
+      "ecosystem": "npm",
+      "direct": false,
+      "dev": false,
+      "relation": "INDIRECT",
+      "vulnIds": [],
+      "maintainers": ["new-publisher-9f3"],
+      "publishedAt": "2026-07-23T18:00:00.000Z",
+      "gapDaysFromPrevious": null,
+      "signals": ["single maintainer", "first release", "published after 0 days of dormancy"]
+    }
+  ]
+}

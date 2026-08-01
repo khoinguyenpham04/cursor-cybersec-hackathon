@@ -6,6 +6,7 @@ import { mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync, exists
 import { dirname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import boilingFrog from './fixtures/boiling-frog.json' with { type: 'json' };
+import demoSelfRepo811 from './fixtures/demo-self-repo-8-11.json' with { type: 'json' };
 import { assertSafeId } from './ids.ts';
 import {
 	parseCampaignResult,
@@ -26,7 +27,13 @@ const DATA_DIR = resolve(process.env.LEDGER_DATA_DIR ?? join(process.cwd(), 'dat
 
 const FIXTURES: Record<string, CaseBundle> = {
 	'fixture-boiling-frog': parseCaseBundle(boilingFrog),
+	/** Live demo substrate: GitHub PRs #8–#11 on the product repo. */
+	'demo-self-repo-8-11': parseCaseBundle(demoSelfRepo811),
 };
+
+export function listFixtureIds(): string[] {
+	return Object.keys(FIXTURES);
+}
 
 function casesDir() {
 	return join(DATA_DIR, 'cases');

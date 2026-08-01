@@ -16,7 +16,7 @@ const app = new Hono();
 // Campaign path (supply-chain composition):
 //   curl -X POST http://localhost:5173/agents/campaign-orchestrator/demo-1 \
 //     -H 'content-type: application/json' \
-//     -d '{"kind":"user","body":"Review fixture-boiling-frog"}'
+//     -d '{"kind":"user","body":"Review demo-self-repo-8-11"}'
 //
 // The Next.js app in ../web proxies /api/agents/* here, so the browser client
 // stays same-origin and no CORS setup is needed.

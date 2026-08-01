@@ -29,14 +29,34 @@ function assert(condition: unknown, message: string): asserts condition {
 }
 
 try {
-	const caseId = 'fixture-boiling-frog';
-	const runId = 'eval_run';
+	// --- Classic offline fixture (3 synthetic PRs) ---
+	const classicId = 'fixture-boiling-frog';
+	const classic = loadFixture(classicId);
+	assert(classic.caseId === classicId, 'classic fixture caseId mismatch');
+	assert(classic.timeline.length === 3, 'expected 3 PRs in boiling-frog timeline');
+	parseCaseBundle(classic);
+	assert(getCase(classicId)?.triggerPr === 430, 'classic getCase failed');
 
-	const loaded = loadFixture(caseId);
-	assert(loaded.caseId === caseId, 'fixture caseId mismatch');
-	assert(loaded.timeline.length === 3, 'expected 3 PRs in boiling-frog timeline');
-	parseCaseBundle(loaded);
-	assert(getCase(caseId)?.triggerPr === 430, 'store getCase failed');
+	// --- Product-repo sequence (live demo PRs #8–#11) ---
+	const selfId = 'demo-self-repo-8-11';
+	const self = loadFixture(selfId);
+	assert(self.caseId === selfId, 'self-repo fixture caseId mismatch');
+	assert(self.repo === 'khoinguyenpham04/cursor-cybersec-hackathon', 'self-repo repo mismatch');
+	assert(self.timeline.length === 4, 'expected 4 PRs in demo-self-repo-8-11');
+	assert(
+		self.timeline.map((t) => t.prNumber).join(',') === '8,9,10,11',
+		'expected timeline 8→9→10→11',
+	);
+	assert(self.triggerPr === 11, 'self-repo triggerPr should be 11');
+	assert(
+		self.capabilityDeltas.find((d) => d.id === 'd5')?.prNumber === 10,
+		'd5 workflow permissions should land on PR #10',
+	);
+	assert(
+		self.capabilityDeltas.find((d) => d.id === 'd7')?.prNumber === 11,
+		'd7 network_hook should land on PR #11',
+	);
+	parseCaseBundle(self);
 
 	assert(
 		!coverageComplete(coverageFromAgents(['graph_analyst', 'ci_auditor'])),
@@ -55,10 +75,16 @@ try {
 		loadFixture('../../etc/passwd');
 	}
 
+	// Run the claim / packet / campaign contract against the self-repo case
+	// so trail validation uses live demo PR numbers.
+	const caseId = selfId;
+	const runId = 'eval_run';
+	const loaded = self;
+
 	const specialists = ['graph_analyst', 'provenance_scout', 'ci_auditor'] as const;
 	const claimIds: string[] = [];
 	for (const agent of specialists) {
-		validateEvidenceRefs(loaded, ['delta:d4', 'pr:419', 'pkg:quiet-utils@0.4.1']);
+		validateEvidenceRefs(loaded, ['delta:d4', 'pr:9', 'pkg:quiet-utils@0.4.1']);
 		const claim = writeClaim({
 			caseId,
 			runId,
@@ -70,7 +96,7 @@ try {
 						? 'graph_risk'
 						: 'provenance_risk',
 			subject: `${agent} signal`,
-			evidenceRefs: ['delta:d4', 'delta:d5', 'pr:419', 'pr:430'],
+			evidenceRefs: ['delta:d4', 'delta:d5', 'pr:9', 'pr:10'],
 			confidence: 0.85,
 			severityHint: 'high',
 			summary: `${agent} evidence-backed claim for eval.`,
@@ -92,8 +118,8 @@ try {
 	const draft = {
 		verdict: 'request_changes' as const,
 		campaignScore: 88,
-		trail: [412, 419, 430],
-		narrative: 'Composition across three PRs.',
+		trail: [8, 9, 10, 11],
+		narrative: 'Composition across four demo PRs.',
 		claimIds,
 		recommendedActions: [
 			{
@@ -103,7 +129,7 @@ try {
 				priority: 'critical' as const,
 			},
 		],
-		headline: 'Campaign risk across PR #412 → #430',
+		headline: 'Campaign risk across PR #8 → #11',
 	};
 
 	const packet = parseInvestigationPacket({
@@ -133,6 +159,7 @@ try {
 		JSON.stringify(
 			{
 				ok: true,
+				cases: [classicId, selfId],
 				caseId,
 				prs: loaded.timeline.map((t) => t.prNumber),
 				coverage: packet.coverage,
