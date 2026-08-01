@@ -51,8 +51,13 @@ export function CaseShell({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const urlTab = searchParams.get("tab");
-  const userPicked = useRef(false);
+
+  const userPicked = useRef(isCaseTab(urlTab));
   const autoSwitchedToReport = useRef(false);
+  /** Last tab we intentionally wrote — ignore stale URL until it catches up. */
+  const pendingUrlTab = useRef<CaseTab | null>(
+    isCaseTab(urlTab) ? urlTab : null,
+  );
 
   const [tab, setTab] = useState<CaseTab>(() =>
     isCaseTab(urlTab)
@@ -60,8 +65,14 @@ export function CaseShell({
       : defaultCaseTab({ working, hasResult, hasError }),
   );
 
-  const writeTab = useCallback(
+  const replaceUrlTab = useCallback(
     (next: CaseTab) => {
+      const current = searchParams.get("tab");
+      if (current === next) {
+        pendingUrlTab.current = next;
+        return;
+      }
+      pendingUrlTab.current = next;
       const params = new URLSearchParams(searchParams.toString());
       params.set("tab", next);
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
@@ -69,50 +80,64 @@ export function CaseShell({
     [pathname, router, searchParams],
   );
 
-  // Sync from URL (back/forward or external ?tab=).
+  const goToTab = useCallback(
+    (next: CaseTab, source: "user" | "auto") => {
+      if (source === "user") userPicked.current = true;
+      setTab(next);
+      replaceUrlTab(next);
+    },
+    [replaceUrlTab],
+  );
+
+  // Apply external URL changes (back/forward) once the address bar catches up.
+  // Do not snap local state back to a stale urlTab while our replace is in flight.
   useEffect(() => {
-    if (isCaseTab(urlTab) && urlTab !== tab) {
-      userPicked.current = true;
-      setTab(urlTab);
+    if (!isCaseTab(urlTab)) return;
+    if (urlTab === tab) {
+      pendingUrlTab.current = urlTab;
+      return;
     }
+    if (pendingUrlTab.current != null && pendingUrlTab.current !== urlTab) {
+      // Stale URL during navigation — wait for our write to land.
+      return;
+    }
+    userPicked.current = true;
+    pendingUrlTab.current = urlTab;
+    setTab(urlTab);
   }, [urlTab, tab]);
 
-  // Auto defaults until the user picks a tab (or after resetDefaultSignal).
+  // Auto defaults until the user picks a tab.
   useEffect(() => {
     if (userPicked.current) return;
     const next = defaultCaseTab({ working, hasResult, hasError });
-    setTab((current) => (current === next ? current : next));
-  }, [working, hasResult, hasError]);
+    if (next === tab) {
+      replaceUrlTab(next);
+      return;
+    }
+    goToTab(next, "auto");
+  }, [working, hasResult, hasError, tab, goToTab, replaceUrlTab]);
 
-  // One-shot auto-switch to Report when a result first appears.
+  // One-shot auto-switch to Report when a result first appears (only if user
+  // has not already chosen a tab).
   useEffect(() => {
     if (!hasResult || autoSwitchedToReport.current) return;
     autoSwitchedToReport.current = true;
-    userPicked.current = false;
-    setTab("report");
-    writeTab("report");
-  }, [hasResult, writeTab]);
+    if (userPicked.current) return;
+    goToTab("report", "auto");
+  }, [hasResult, goToTab]);
 
   // Re-run / explicit reset → Orchestration.
   useEffect(() => {
     if (resetDefaultSignal == null || resetDefaultSignal <= 0) return;
     userPicked.current = false;
     autoSwitchedToReport.current = false;
-    setTab("orchestration");
-    writeTab("orchestration");
-  }, [resetDefaultSignal, writeTab]);
-
-  useEffect(() => {
-    if (isCaseTab(urlTab) && urlTab === tab) return;
-    writeTab(tab);
-  }, [tab, urlTab, writeTab]);
+    goToTab("orchestration", "auto");
+  }, [resetDefaultSignal, goToTab]);
 
   function onTabChange(value: string | number | null) {
     const next = String(value);
-    if (!isCaseTab(next)) return;
-    userPicked.current = true;
-    setTab(next);
-    writeTab(next);
+    if (!isCaseTab(next) || next === tab) return;
+    goToTab(next, "user");
   }
 
   return (
