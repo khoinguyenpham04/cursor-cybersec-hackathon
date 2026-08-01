@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/review/app-shell";
-import { ReviewWorkspace } from "@/components/review/review-workspace";
+import { ReviewRedirect } from "@/components/review/review-redirect";
 
 export default async function ReviewPage({
   params,
@@ -9,7 +9,7 @@ export default async function ReviewPage({
   const { id } = await params;
   return (
     <AppShell>
-      <ReviewWorkspace sessionId={id} />
+      <ReviewRedirect id={id} />
     </AppShell>
   );
 }

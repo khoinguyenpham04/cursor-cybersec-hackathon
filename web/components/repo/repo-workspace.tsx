@@ -19,27 +19,35 @@ import {
   DepGraphCanvas,
   type DepGraphData,
 } from "@/components/repo/dep-graph-canvas";
+import { RepoCases } from "@/components/repo/repo-cases";
 import { RepoMapCanvas } from "@/components/repo/repo-map-canvas";
-import { NewReviewForm } from "@/components/review/new-review-form";
+import { RepoOverview } from "@/components/repo/repo-overview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  campaignCasePath,
+  ensureCampaignDemoSession,
+} from "@/lib/campaign-demo";
+import { abortConversation } from "@/lib/flue-abort";
 import { extractScan } from "@/lib/scan";
 import { updateRepo } from "@/lib/repos";
-import { useReviewSessions } from "@/lib/sessions";
+import { filterRepoSessions, useReviewSessions } from "@/lib/sessions";
 import { cn } from "@/lib/utils";
 import { useFlueAgent } from "@flue/react";
 import {
   ExternalLinkIcon,
-  GitPullRequestIcon,
+  FolderKanbanIcon,
+  LayoutDashboardIcon,
   MapIcon,
   PackageIcon,
   PlayIcon,
   RefreshCwIcon,
+  SquareIcon,
 } from "lucide-react";
-import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /** Big jobs run only when the user presses a button — never on mount. */
@@ -56,15 +64,40 @@ function timeAgo(timestamp: number): string {
 }
 
 export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) {
+  const router = useRouter();
   const repoRef = `${owner}/${repo}`;
   // One durable conversation per repo: the map replays for free on revisit.
   const conversationId = `scan-${owner}--${repo}`;
-  const agent = useFlueAgent({
-    url: `/api/agents/repo-scanner/${conversationId}`,
-  });
+  const agentUrl = `/api/agents/repo-scanner/${conversationId}`;
+  // Relative URL + useFlueAgent({ url }) stays dormant during SSR (unlike
+  // createFlueClient, which throws without window.location).
+  const agent = useFlueAgent({ url: agentUrl });
+
+  const sessions = useReviewSessions();
+  const startCampaignDemo = useCallback(() => {
+    const session = ensureCampaignDemoSession(owner, repo);
+    router.push(campaignCasePath(owner, repo, session.id));
+  }, [owner, repo, router]);
 
   const scan = useMemo(() => extractScan(agent.messages), [agent.messages]);
   const scanning = agent.status === "submitted" || agent.status === "streaming";
+  const [stopping, setStopping] = useState(false);
+  const [stopError, setStopError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (scanning) return;
+    if (stopping) setStopping(false);
+    if (stopError) setStopError(null);
+  }, [scanning, stopping, stopError]);
+
+  useEffect(() => {
+    if (!stopping) return;
+    const timeout = window.setTimeout(() => {
+      setStopping(false);
+      setStopError((prev) => prev ?? "Stop timed out; try again or refresh.");
+    }, 10_000);
+    return () => window.clearTimeout(timeout);
+  }, [stopping]);
 
   useEffect(() => {
     if (scan) {
@@ -86,6 +119,26 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
     },
     [agent, repoRef],
   );
+
+  const stopScan = useCallback(() => {
+    if (stopping) return;
+    setStopping(true);
+    setStopError(null);
+    void abortConversation(agentUrl)
+      .then(({ aborted }) => {
+        if (!aborted) {
+          setStopError("Nothing was in flight to abort.");
+          setStopping(false);
+          return;
+        }
+        // Pull latest settlement if SSE lags behind the abort ACK.
+        agent.refresh();
+      })
+      .catch((error: unknown) => {
+        setStopError(error instanceof Error ? error.message : String(error));
+        setStopping(false);
+      });
+  }, [agent, agentUrl, stopping]);
 
   // --- Dependency job (explicit) ------------------------------------------
   const [deps, setDeps] = useState<DepGraphData | null>(null);
@@ -126,13 +179,44 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
       .finally(() => setDepsChecked(true));
   }, [repoRef]);
 
-  // --- Reviews -------------------------------------------------------------
-  const sessions = useReviewSessions();
-  const repoSessions = sessions.filter((session) =>
-    session.pr.includes(`${owner}/${repo}`),
+  // --- Cases ---------------------------------------------------------------
+  const repoSessions = useMemo(
+    () => filterRepoSessions(sessions, owner, repo),
+    [sessions, owner, repo],
   );
 
-  const [tab, setTab] = useState("map");
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab");
+  const [tab, setTab] = useState(
+    initialTab === "cases" ||
+      initialTab === "map" ||
+      initialTab === "deps" ||
+      initialTab === "overview"
+      ? initialTab
+      : "overview",
+  );
+
+  useEffect(() => {
+    const next = searchParams.get("tab");
+    if (
+      next === "cases" ||
+      next === "map" ||
+      next === "deps" ||
+      next === "overview"
+    ) {
+      setTab(next);
+    }
+  }, [searchParams]);
+
+  const runScanFromOverview = useCallback(() => {
+    startScan(Boolean(scan));
+    setTab("map");
+  }, [scan, startScan]);
+
+  const buildDepsFromOverview = useCallback(() => {
+    void loadDeps(Boolean(deps));
+    setTab("deps");
+  }, [deps, loadDeps]);
 
   // Tool calls from the live scan, for the progress strip.
   const scanSteps = useMemo(() => {
@@ -171,10 +255,28 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
         />
         <div className="min-w-0 flex-1">
           <h1 className="truncate font-semibold text-sm">{repoRef}</h1>
-          {scan?.project.tagline && (
+          {tab === "overview" ? (
             <p className="truncate text-muted-foreground text-xs">
-              {scan.project.tagline}
+              {scan
+                ? `${scan.nodes.length} nodes`
+                : "Not scanned"}
+              {" · "}
+              {deps
+                ? deps.totals.vulnerable > 0
+                  ? `${deps.totals.vulnerable} vulnerable`
+                  : `${deps.totals.packages} packages`
+                : "No deps graph"}
+              {" · "}
+              {repoSessions.length > 0
+                ? `${repoSessions.length} case${repoSessions.length === 1 ? "" : "s"}`
+                : "No cases"}
             </p>
+          ) : (
+            scan?.project.tagline && (
+              <p className="truncate text-muted-foreground text-xs">
+                {scan.project.tagline}
+              </p>
+            )
           )}
         </div>
         {scan && (
@@ -199,9 +301,9 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
         </Button>
       </header>
 
-      {agent.error && (
+      {(agent.error || stopError) && (
         <div className="border-b bg-destructive/10 px-6 py-2 text-destructive text-sm">
-          {agent.error.message}
+          {agent.error?.message ?? stopError}
         </div>
       )}
 
@@ -210,59 +312,68 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
         onValueChange={(value) => setTab(String(value))}
         value={tab}
       >
-        <div className="flex items-center gap-2 border-b px-4 lg:px-6">
-          <TabsList className="h-10 bg-transparent p-0">
-            <TabsTrigger
-              className="gap-1.5 rounded-none border-transparent border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none"
-              value="map"
-            >
-              <MapIcon className="size-3.5" />
-              Map
-            </TabsTrigger>
-            <TabsTrigger
-              className="gap-1.5 rounded-none border-transparent border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none"
-              value="deps"
-            >
-              <PackageIcon className="size-3.5" />
-              Dependencies
-              {deps && deps.totals.vulnerable > 0 && (
-                <Badge className="border border-red-500/30 bg-red-500/15 text-[10px] text-red-600 dark:text-red-400">
-                  {deps.totals.vulnerable}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger
-              className="gap-1.5 rounded-none border-transparent border-b-2 data-[state=active]:border-primary data-[state=active]:shadow-none"
-              value="reviews"
-            >
-              <GitPullRequestIcon className="size-3.5" />
-              Reviews
-              {repoSessions.length > 0 && (
-                <Badge className="text-[10px]" variant="secondary">
-                  {repoSessions.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Job controls live beside the tabs: nothing runs unless clicked. */}
-          <div className="ml-auto flex items-center gap-1.5 py-1.5">
-            {tab === "map" && (
-              <Button
-                className="gap-1.5"
-                disabled={scanning || !agent.historyReady}
-                onClick={() => startScan(Boolean(scan))}
-                size="sm"
-                variant={scan ? "outline" : "default"}
-              >
-                {scan ? (
-                  <RefreshCwIcon className={cn("size-3.5", scanning && "animate-spin")} />
-                ) : (
-                  <PlayIcon className="size-3.5" />
+        <div className="flex min-w-0 flex-col gap-2 border-b px-4 py-2 sm:flex-row sm:items-center sm:gap-3 lg:px-6">
+          <div className="min-w-0 overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <TabsList aria-label="Repository views">
+              <TabsTrigger value="overview">
+                <LayoutDashboardIcon />
+                <span className="sr-only sm:not-sr-only">Overview</span>
+              </TabsTrigger>
+              <TabsTrigger value="map">
+                <MapIcon />
+                <span className="sr-only sm:not-sr-only">Map</span>
+              </TabsTrigger>
+              <TabsTrigger value="deps">
+                <PackageIcon />
+                <span className="sr-only sm:not-sr-only">Dependencies</span>
+                {deps && deps.totals.vulnerable > 0 && (
+                  <Badge className="border border-red-500/30 bg-red-500/15 text-[10px] text-red-600 dark:text-red-400">
+                    {deps.totals.vulnerable}
+                  </Badge>
                 )}
-                {scanning ? "Scanning…" : scan ? "Rescan" : "Run scan"}
-              </Button>
-            )}
+              </TabsTrigger>
+              <TabsTrigger value="cases">
+                <FolderKanbanIcon />
+                <span className="sr-only sm:not-sr-only">Cases</span>
+                {repoSessions.length > 0 && (
+                  <Badge className="text-[10px]" variant="secondary">
+                    {repoSessions.length}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          {/* Job controls: nothing runs unless clicked. */}
+          <div className="flex shrink-0 items-center gap-1.5 sm:ms-auto">
+            {tab === "map" &&
+              (scanning ? (
+                <Button
+                  className="gap-1.5"
+                  disabled={stopping}
+                  onClick={stopScan}
+                  size="sm"
+                  variant="outline"
+                >
+                  <SquareIcon className="size-3.5" />
+                  {stopping ? "Stopping…" : "Stop"}
+                </Button>
+              ) : (
+                <Button
+                  className="gap-1.5"
+                  disabled={!agent.historyReady}
+                  onClick={() => startScan(Boolean(scan))}
+                  size="sm"
+                  variant={scan ? "outline" : "default"}
+                >
+                  {scan ? (
+                    <RefreshCwIcon className="size-3.5" />
+                  ) : (
+                    <PlayIcon className="size-3.5" />
+                  )}
+                  {scan ? "Rescan" : "Run scan"}
+                </Button>
+              ))}
             {tab === "deps" && (
               <Button
                 className="gap-1.5"
@@ -287,6 +398,25 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
             )}
           </div>
         </div>
+
+        {/* ------------------------------------------------------------ Overview */}
+        <TabsContent className="flex min-h-0 flex-1 flex-col" value="overview">
+          <RepoOverview
+            caseCount={repoSessions.length}
+            deps={deps}
+            depsChecked={depsChecked}
+            depsState={depsState}
+            onBuildDeps={buildDepsFromOverview}
+            onInvestigateSequence={startCampaignDemo}
+            onNewCase={() => setTab("cases")}
+            onScan={runScanFromOverview}
+            onStopScan={stopScan}
+            scan={scan}
+            scanning={scanning}
+            scanReady={agent.historyReady}
+            stopping={stopping}
+          />
+        </TabsContent>
 
         {/* ---------------------------------------------------------------- Map */}
         <TabsContent className="flex min-h-0 flex-1 flex-col" value="map">
@@ -324,7 +454,11 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
                   </PromptInputBody>
                   <PromptInputFooter>
                     <PromptInputTools />
-                    <PromptInputSubmit status={scanning ? "streaming" : "ready"} />
+                    <PromptInputSubmit
+                      disabled={stopping}
+                      onStop={stopScan}
+                      status={scanning ? "streaming" : "ready"}
+                    />
                   </PromptInputFooter>
                 </PromptInput>
               </div>
@@ -343,7 +477,7 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
                 </p>
               </div>
               {scanning ? (
-                <div className="w-full max-w-md text-left">
+                <div className="flex w-full max-w-md flex-col items-stretch gap-3 text-left">
                   <ChainOfThought defaultOpen>
                     <ChainOfThoughtHeader>Scanning…</ChainOfThoughtHeader>
                     <ChainOfThoughtContent>
@@ -359,6 +493,15 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
                       ))}
                     </ChainOfThoughtContent>
                   </ChainOfThought>
+                  <Button
+                    className="gap-1.5 self-center"
+                    disabled={stopping}
+                    onClick={stopScan}
+                    variant="outline"
+                  >
+                    <SquareIcon className="size-4" />
+                    {stopping ? "Stopping…" : "Stop scan"}
+                  </Button>
                 </div>
               ) : (
                 <Button
@@ -432,36 +575,9 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
           )}
         </TabsContent>
 
-        {/* -------------------------------------------------------------- Reviews */}
-        <TabsContent className="min-h-0 flex-1 overflow-y-auto" value="reviews">
-          {repoSessions.length > 0 ? (
-            <div className="mx-auto flex w-full max-w-2xl flex-col gap-2 p-6">
-              {repoSessions.map((session) => (
-                <Link
-                  className="flex items-center gap-3 rounded-lg border px-4 py-3 hover:bg-accent"
-                  href={`/review/${session.id}`}
-                  key={session.id}
-                >
-                  <GitPullRequestIcon className="size-4 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-sm">
-                      {session.prTitle ?? session.title}
-                    </p>
-                    <p className="text-muted-foreground text-xs">
-                      {session.title} · {timeAgo(session.createdAt)}
-                    </p>
-                  </div>
-                  {session.verdict && (
-                    <Badge className="text-[10px]" variant="outline">
-                      {session.verdict.replace("_", " ")}
-                    </Badge>
-                  )}
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <NewReviewForm />
-          )}
+        {/* ---------------------------------------------------------------- Cases */}
+        <TabsContent className="flex min-h-0 flex-1 flex-col" value="cases">
+          <RepoCases owner={owner} repo={repo} />
         </TabsContent>
       </Tabs>
     </div>
