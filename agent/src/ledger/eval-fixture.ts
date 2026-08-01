@@ -1,6 +1,11 @@
 // Deterministic fixture eval — no LLM. Ensures the parallelization contract
-// holds: fixture parses, store round-trips, and a golden campaign shape is valid.
+// holds: fixture parses, store round-trips, coverage helpers, InvestigationPacket.
 
+import {
+	coverageComplete,
+	coverageFromAgents,
+	parseInvestigationPacket,
+} from '../lib/investigation-schema.ts';
 import { parseCampaignResult, parseCaseBundle } from './schema.ts';
 import { getCase, listClaims, loadFixture, putCampaignResult, writeClaim } from './store.ts';
 
@@ -27,52 +32,83 @@ const again = getCase(caseId);
 assert(again && again.triggerPr === 430, 'store getCase failed');
 parseCaseBundle(again);
 
-const claim = writeClaim({
+// Incomplete coverage must fail the gate helper.
+assert(
+	!coverageComplete(coverageFromAgents(['graph_analyst', 'ci_auditor'])),
+	'coverage gate should reject missing provenance_scout',
+);
+
+const specialists = ['graph_analyst', 'provenance_scout', 'ci_auditor'] as const;
+const claimIds: string[] = [];
+for (const agent of specialists) {
+	const claim = writeClaim({
+		caseId,
+		runId,
+		agent,
+		claimType: agent === 'ci_auditor' ? 'ci_risk' : agent === 'graph_analyst' ? 'graph_risk' : 'provenance_risk',
+		subject: `${agent} signal`,
+		evidenceRefs: ['delta:d4', 'delta:d5', 'pr:419', 'pr:430'],
+		confidence: 0.85,
+		severityHint: 'high',
+		summary: `${agent} evidence-backed claim for eval.`,
+	});
+	claimIds.push(claim.id);
+}
+
+const coverage = coverageFromAgents(listClaims(caseId, runId).map((c) => c.agent));
+assert(coverageComplete(coverage), 'expected full specialist coverage');
+
+const draft = {
+	verdict: 'request_changes' as const,
+	campaignScore: 88,
+	trail: [412, 419, 430],
+	narrative:
+		'PR #412 adds http-helper (benign alone). PR #419 pulls quiet-utils with postinstall. PR #430 expands Actions write and wires http-helper into billing secrets. Composition is the attack.',
+	claimIds,
+	recommendedActions: [
+		{
+			action: 'quarantine' as const,
+			target: 'quiet-utils@0.4.1',
+			rationale: 'Transitive postinstall from first-release publisher.',
+			priority: 'critical' as const,
+		},
+		{
+			action: 'revert_sequence' as const,
+			target: 'PR #419 + #430 capability deltas',
+			rationale: 'Restore prior lockfile and workflow permissions until dual-reviewed.',
+			priority: 'high' as const,
+		},
+		{
+			action: 'require_dual_review' as const,
+			target: 'acme/payments-api dependency+workflow changes',
+			rationale: 'Campaign-shaped change set across multiple PRs.',
+			priority: 'high' as const,
+		},
+	],
+	headline: 'Campaign risk across PR #412 → #430',
+};
+
+const packet = parseInvestigationPacket({
 	caseId,
 	runId,
-	agent: 'eval',
-	claimType: 'composition_risk',
-	subject: 'PR 412→419→430',
-	evidenceRefs: ['delta:d4', 'delta:d5', 'delta:d7', 'pr:412', 'pr:419', 'pr:430'],
-	confidence: 0.9,
-	severityHint: 'critical',
-	summary: 'Transitive postinstall + Actions write + billing path contact across three PRs.',
+	coverage,
+	claimIds,
+	draft,
 });
-assert(listClaims(caseId, runId).some((c) => c.id === claim.id), 'claim not listed');
+assert(packet.draft.trail.join(',') === '412,419,430', 'packet trail mismatch');
 
 const campaign = putCampaignResult(
 	parseCampaignResult({
-		caseId,
-		verdict: 'request_changes',
-		campaignScore: 88,
-		trail: [412, 419, 430],
-		narrative:
-			'PR #412 adds http-helper (benign alone). PR #419 pulls quiet-utils with postinstall. PR #430 expands Actions write and wires http-helper into billing secrets. Composition is the attack.',
-		claimIds: [claim.id],
-		recommendedActions: [
-			{
-				action: 'quarantine',
-				target: 'quiet-utils@0.4.1',
-				rationale: 'Transitive postinstall from first-release publisher.',
-				priority: 'critical',
-			},
-			{
-				action: 'revert_sequence',
-				target: 'PR #419 + #430 capability deltas',
-				rationale: 'Restore prior lockfile and workflow permissions until dual-reviewed.',
-				priority: 'high',
-			},
-			{
-				action: 'require_dual_review',
-				target: 'acme/payments-api dependency+workflow changes',
-				rationale: 'Campaign-shaped change set across multiple PRs.',
-				priority: 'high',
-			},
-		],
+		caseId: packet.caseId,
+		verdict: packet.draft.verdict,
+		campaignScore: packet.draft.campaignScore,
+		trail: packet.draft.trail,
+		narrative: packet.draft.narrative,
+		claimIds: packet.draft.claimIds,
+		recommendedActions: packet.draft.recommendedActions,
 	}),
 );
 
-assert(campaign.trail.join(',') === '412,419,430', 'trail mismatch');
 assert(campaign.recommendedActions.length >= 1, 'expected policy actions');
 
 console.log(
@@ -82,8 +118,10 @@ console.log(
 			caseId,
 			prs: loaded.timeline.map((t) => t.prNumber),
 			deltas: loaded.capabilityDeltas.length,
+			coverage: packet.coverage,
 			campaignScore: campaign.campaignScore,
 			actions: campaign.recommendedActions.map((a) => a.action),
+			controlPlane: 'investigate_case',
 		},
 		null,
 		2,

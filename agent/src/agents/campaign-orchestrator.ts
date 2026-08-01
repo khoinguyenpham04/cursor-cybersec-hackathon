@@ -7,17 +7,14 @@ import { ciAuditor } from '../subagents/ci-auditor.ts';
 import { graphAnalyst } from '../subagents/graph-analyst.ts';
 import { provenanceScout } from '../subagents/provenance-scout.ts';
 import { submitCampaign } from '../tools/campaign.ts';
-import {
-	listCaseClaims,
-	listCaseDeltas,
-	loadFixtureCase,
-	readCase,
-} from '../tools/ledger.ts';
+import { investigateCase } from '../tools/investigate.ts';
+import { loadFixtureCase, readCase } from '../tools/ledger.ts';
 
 type Phase = 'loading' | 'investigating' | 'composing' | 'submitted';
 
-// Parent agent: fan-out specialists via Flue `task`, compose, submit_campaign.
-// Reads the Risk Ledger; does not scrape GitHub. Ingest owns Case Bundles.
+// Thin parent: load case → investigate_case (control plane) → submit_campaign.
+// Specialist fan-out is enforced inside investigate_case (durable + harness),
+// not by hoping the model issues parallel task calls.
 export function CampaignOrchestrator() {
 	useModel(process.env.CAMPAIGN_ORCHESTRATOR_MODEL || 'anthropic/claude-opus-5');
 
@@ -27,13 +24,13 @@ export function CampaignOrchestrator() {
 
 	useTool(loadFixtureCase);
 	useTool(readCase);
-	useTool(listCaseDeltas);
-	useTool(listCaseClaims);
+	useTool(investigateCase);
+	useTool(submitCampaign);
 
 	useTool({
 		name: 'set_review_context',
 		description:
-			'Persist caseId + runId after the case is loaded and advance phase to investigating. Call once before fan-out.',
+			'Persist caseId + runId after the case is loaded and advance phase. Call once before investigate_case.',
 		input: v.object({
 			caseId: v.string(),
 			runId: v.string(),
@@ -54,11 +51,11 @@ export function CampaignOrchestrator() {
 		},
 	});
 
+	// Specialists must stay mounted so investigate_case harness can task them.
 	useSubagent(graphAnalyst);
 	useSubagent(provenanceScout);
 	useSubagent(ciAuditor);
 	useSubagent(campaignComposer);
-	useTool(submitCampaign);
 	useSkill(campaignOrchestratorSkill);
 
 	return `You are the CampaignOrchestrator for open-source supply-chain campaign detection.
@@ -69,10 +66,11 @@ runId: ${runId ?? '(none)'}.
 
 Follow the campaign-orchestrator skill exactly.
 When the user asks for the boiling-frog / fixture demo, load caseId "fixture-boiling-frog".
-1) load_fixture_case (if needed) → read_case → set_review_context
-2) Fan out graph_analyst, provenance_scout, and ci_auditor in one parallel task batch (self-contained prompts with caseId + runId)
-3) list_claims → campaign_composer (or compose yourself)
-4) submit_campaign exactly once
-After submit_campaign, one short closing sentence only.`;
+
+Protocol:
+1) load_fixture_case (if needed) → read_case → set_review_context(caseId, runId)
+2) investigate_case({ caseId, runId }) — this is the ONLY fan-out path; do not manually task specialists
+3) submit_campaign from the packet.draft (caseId, verdict, campaignScore, trail, narrative, claimIds, recommendedActions, headline)
+4) One short closing sentence after submit_campaign succeeds.`;
 }
 CampaignOrchestrator.agentName = 'campaign-orchestrator';

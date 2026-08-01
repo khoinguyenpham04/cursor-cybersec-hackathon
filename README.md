@@ -8,12 +8,13 @@ adversarial reviewer.
 
 | Route | Role |
 |---|---|
-| `/agents/campaign-orchestrator` | Parent orchestrator + specialists (`graph_analyst`, `provenance_scout`, `ci_auditor`, `campaign_composer`) over a shared Risk Ledger |
+| `/agents/campaign-orchestrator` | Thin parent + specialists over a shared Risk Ledger; fan-out enforced by `investigate_case` (durable + harness) |
 | `/agents/pr-reviewer` | Original single-PR adversarial code review |
 
 Orchestrate reads **Case Bundles** from `agent/src/ledger` (facts). Ingest owns
 writing real cases; this branch ships a fixture (`fixture-boiling-frog`) so the
-orchestrator can be developed in parallel.
+orchestrator can be developed in parallel. Specialist parallelism is
+**control-plane enforced** via `investigate_case`, not prompt-hoped `task` calls.
 
 ```bash
 # terminal 1
@@ -31,7 +32,8 @@ npm run eval:fixture
 
 ```
 agent/   Flue agent server (Hono + Vite, Node target)
-  src/agents/campaign-orchestrator.ts   multi-agent campaign parent
+  src/agents/campaign-orchestrator.ts   thin campaign parent
+  src/tools/investigate.ts              durable+harness fan-out control plane
   src/subagents/                        graph / provenance / ci / composer
   src/ledger/                           Case Bundle + Claim contract + fixtures
   src/agents/pr-reviewer.ts             single-PR adversarial reviewer
