@@ -1,5 +1,6 @@
 "use client";
 
+import { isMockSessionId } from "@/lib/mock-review";
 import { parsePrRef } from "@/lib/pr";
 import type { ReviewVerdict } from "@/lib/review";
 import { useSyncExternalStore } from "react";
@@ -8,7 +9,7 @@ export type CaseKind = "review" | "campaign";
 
 export interface ReviewSession {
   id: string;
-  /** Case kind. Missing on legacy rows → treated as "review". */
+  /** Case kind. Missing on legacy rows → inferred from id prefix, else "review". */
   kind?: CaseKind;
   /** The PR reference as the user entered it (URL or owner/repo#N). Empty for campaigns. */
   pr: string;
@@ -37,7 +38,10 @@ function read(): ReviewSession[] {
   if (cache) return cache;
   if (typeof window === "undefined") return [];
   try {
-    cache = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "[]");
+    const raw = JSON.parse(
+      window.localStorage.getItem(STORAGE_KEY) ?? "[]",
+    ) as ReviewSession[];
+    cache = Array.isArray(raw) ? raw : [];
   } catch {
     cache = [];
   }
@@ -68,19 +72,30 @@ export function getSession(id: string): ReviewSession | undefined {
 export function saveSession(session: ReviewSession) {
   const normalized: ReviewSession = {
     ...session,
-    kind: session.kind ?? "review",
+    kind: session.kind ?? kindFromCaseId(session.id),
+    pr: session.pr ?? "",
   };
   write([normalized, ...read().filter((s) => s.id !== session.id)]);
 }
 
-/** Merge fields into a stored session; no-ops when nothing would change. */
+/** Merge fields into a stored session; creates a stub row when missing. */
 export function updateSession(
   id: string,
   patch: Partial<Omit<ReviewSession, "id">>,
 ) {
   const sessions = read();
   const existing = sessions.find((session) => session.id === id);
-  if (!existing) return;
+  if (!existing) {
+    saveSession({
+      id,
+      kind: kindFromCaseId(id),
+      pr: "",
+      title: patch.title ?? id,
+      createdAt: Date.now(),
+      ...patch,
+    });
+    return;
+  }
   const dirty = Object.entries(patch).some(
     ([key, value]) => existing[key as keyof ReviewSession] !== value,
   );
@@ -104,8 +119,14 @@ export function newCampaignSessionId(): string {
   return `campaign-${crypto.randomUUID().slice(0, 13)}`;
 }
 
-export function caseKind(session: ReviewSession): CaseKind {
-  return session.kind ?? "review";
+/** Infer kind from id prefix when localStorage row is missing (shared links). */
+export function kindFromCaseId(id: string): CaseKind {
+  if (id.startsWith("campaign-")) return "campaign";
+  return "review";
+}
+
+export function caseKind(session: Pick<ReviewSession, "id" | "kind">): CaseKind {
+  return session.kind ?? kindFromCaseId(session.id);
 }
 
 /** Resolve owner/repo for a session from explicit repo or PR ref. */
@@ -122,11 +143,15 @@ export function resolveSessionRepo(
 }
 
 export function casePath(session: ReviewSession): string {
+  // Demo reviews stay on the standalone review surface (no phantom repo shell).
+  if (isMockSessionId(session.id)) {
+    return `/review/${encodeURIComponent(session.id)}`;
+  }
   const resolved = resolveSessionRepo(session);
   if (resolved) {
-    return `/repo/${resolved.owner}/${resolved.repo}/case/${session.id}`;
+    return `/repo/${encodeURIComponent(resolved.owner)}/${encodeURIComponent(resolved.repo)}/case/${encodeURIComponent(session.id)}`;
   }
-  return `/review/${session.id}`;
+  return `/review/${encodeURIComponent(session.id)}`;
 }
 
 export function sessionBelongsToRepo(
@@ -134,11 +159,14 @@ export function sessionBelongsToRepo(
   owner: string,
   repo: string,
 ): boolean {
-  const repoRef = `${owner}/${repo}`;
-  if (session.repo === repoRef) return true;
-  if (session.pr.includes(repoRef)) return true;
+  const repoRef = `${owner}/${repo}`.toLowerCase();
+  if (session.repo?.toLowerCase() === repoRef) return true;
+  if (session.pr && session.pr.toLowerCase().includes(repoRef)) return true;
   const resolved = resolveSessionRepo(session);
-  return resolved?.owner === owner && resolved?.repo === repo;
+  return (
+    resolved?.owner.toLowerCase() === owner.toLowerCase() &&
+    resolved?.repo.toLowerCase() === repo.toLowerCase()
+  );
 }
 
 export function filterRepoSessions(

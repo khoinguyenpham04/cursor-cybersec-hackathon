@@ -35,7 +35,12 @@ export function NewReviewForm({
       );
       return;
     }
-    if (owner && repo && (ref.owner !== owner || ref.repo !== repo)) {
+    if (
+      owner &&
+      repo &&
+      (ref.owner.toLowerCase() !== owner.toLowerCase() ||
+        ref.repo.toLowerCase() !== repo.toLowerCase())
+    ) {
       setError(`This workspace is for ${owner}/${repo}. Paste a PR from that repo.`);
       return;
     }

@@ -8,6 +8,7 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
   caseKind,
   getSession,
+  kindFromCaseId,
   useReviewSessions,
 } from "@/lib/sessions";
 import { ArrowLeftIcon } from "lucide-react";
@@ -28,8 +29,10 @@ export function CaseWorkspace({
     () => sessions.find((session) => session.id === caseId) ?? getSession(caseId),
     [sessions, caseId],
   );
-  const kind = live ? caseKind(live) : "review";
+  // Prefer id prefix when the localStorage row is missing (shared links / SSR).
+  const kind = live ? caseKind(live) : kindFromCaseId(caseId);
   const title = live?.headline ?? live?.prTitle ?? live?.title ?? "Case";
+  const casesHref = `/repo/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}?tab=cases`;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -43,7 +46,7 @@ export function CaseWorkspace({
           aria-label="Back to cases"
           className="gap-1.5"
           nativeButton={false}
-          render={<Link href={`/repo/${owner}/${repo}?tab=cases`} />}
+          render={<Link href={casesHref} />}
           size="sm"
           variant="ghost"
         >

@@ -29,14 +29,14 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   campaignCasePath,
-  createCampaignDemoSession,
+  ensureCampaignDemoSession,
 } from "@/lib/campaign-demo";
+import { abortConversation } from "@/lib/flue-abort";
 import { extractScan } from "@/lib/scan";
 import { updateRepo } from "@/lib/repos";
 import { filterRepoSessions, useReviewSessions } from "@/lib/sessions";
 import { cn } from "@/lib/utils";
 import { useFlueAgent } from "@flue/react";
-import { createFlueClient } from "@flue/sdk";
 import {
   ExternalLinkIcon,
   FolderKanbanIcon,
@@ -69,17 +69,24 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
   // One durable conversation per repo: the map replays for free on revisit.
   const conversationId = `scan-${owner}--${repo}`;
   const agentUrl = `/api/agents/repo-scanner/${conversationId}`;
-  const client = useMemo(() => createFlueClient({ url: agentUrl }), [agentUrl]);
-  const agent = useFlueAgent({ client });
+  // Relative URL + useFlueAgent({ url }) stays dormant during SSR (unlike
+  // createFlueClient, which throws without window.location).
+  const agent = useFlueAgent({ url: agentUrl });
 
+  const sessions = useReviewSessions();
   const startCampaignDemo = useCallback(() => {
-    const session = createCampaignDemoSession(owner, repo);
+    const session = ensureCampaignDemoSession(sessions, owner, repo);
     router.push(campaignCasePath(owner, repo, session.id));
-  }, [owner, repo, router]);
+  }, [sessions, owner, repo, router]);
 
   const scan = useMemo(() => extractScan(agent.messages), [agent.messages]);
   const scanning = agent.status === "submitted" || agent.status === "streaming";
   const [stopping, setStopping] = useState(false);
+  const [stopError, setStopError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!scanning && stopping) setStopping(false);
+  }, [scanning, stopping]);
 
   useEffect(() => {
     if (scan) {
@@ -102,23 +109,23 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
     [agent, repoRef],
   );
 
-  // Abort is recorded immediately; settlement can lag (or stick if the agent
-  // is wedged in recovery). Clear the Stopping label when the request returns.
   const stopScan = useCallback(() => {
     if (stopping) return;
     setStopping(true);
-    void client
-      .abort()
-      .then(() => {
-        agent.refresh();
+    setStopError(null);
+    void abortConversation(agentUrl)
+      .then(({ aborted }) => {
+        if (!aborted) {
+          setStopError("Nothing was in flight to abort.");
+          setStopping(false);
+        }
+        // Keep Stopping… until status leaves submitted/streaming.
       })
-      .catch(() => {
-        /* keep scanning controls available */
-      })
-      .finally(() => {
+      .catch((error: Error) => {
+        setStopError(error.message);
         setStopping(false);
       });
-  }, [agent, client, stopping]);
+  }, [agentUrl, stopping]);
 
   // --- Dependency job (explicit) ------------------------------------------
   const [deps, setDeps] = useState<DepGraphData | null>(null);
@@ -160,7 +167,6 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
   }, [repoRef]);
 
   // --- Cases ---------------------------------------------------------------
-  const sessions = useReviewSessions();
   const repoSessions = useMemo(
     () => filterRepoSessions(sessions, owner, repo),
     [sessions, owner, repo],
@@ -282,9 +288,9 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
         </Button>
       </header>
 
-      {agent.error && (
+      {(agent.error || stopError) && (
         <div className="border-b bg-destructive/10 px-6 py-2 text-destructive text-sm">
-          {agent.error.message}
+          {agent.error?.message ?? stopError}
         </div>
       )}
 

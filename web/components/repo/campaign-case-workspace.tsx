@@ -1,11 +1,15 @@
 "use client";
 
 import {
-  ChainOfThought,
-  ChainOfThoughtContent,
-  ChainOfThoughtHeader,
-  ChainOfThoughtStep,
-} from "@/components/ai-elements/chain-of-thought";
+  PromptInput,
+  PromptInputBody,
+  PromptInputFooter,
+  type PromptInputMessage,
+  PromptInputSubmit,
+  PromptInputTextarea,
+  PromptInputTools,
+} from "@/components/ai-elements/prompt-input";
+import { Transcript } from "@/components/review/transcript";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,15 +21,11 @@ import {
   campaignDemoKickoffMessage,
   DEMO_LEDGER_CASE,
 } from "@/lib/campaign-demo";
+import { abortConversation } from "@/lib/flue-abort";
 import { getSession, updateSession, useReviewSessions } from "@/lib/sessions";
 import { cn } from "@/lib/utils";
 import { useFlueAgent } from "@flue/react";
-import { createFlueClient } from "@flue/sdk";
-import {
-  PlayIcon,
-  ShieldAlertIcon,
-  SquareIcon,
-} from "lucide-react";
+import { PlayIcon, ShieldAlertIcon, SquareIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export function CampaignCaseWorkspace({
@@ -39,36 +39,27 @@ export function CampaignCaseWorkspace({
 }) {
   const sessions = useReviewSessions();
   const session = useMemo(
-    () => sessions.find((entry) => entry.id === sessionId) ?? getSession(sessionId),
+    () =>
+      sessions.find((entry) => entry.id === sessionId) ?? getSession(sessionId),
     [sessions, sessionId],
   );
   const ledgerCaseId = session?.ledgerCaseId ?? DEMO_LEDGER_CASE;
   const agentUrl = `/api/agents/campaign-orchestrator/${sessionId}`;
-  const client = useMemo(() => createFlueClient({ url: agentUrl }), [agentUrl]);
-  const agent = useFlueAgent({ client });
+  const agent = useFlueAgent({ url: agentUrl });
 
   const working =
     agent.status === "submitted" || agent.status === "streaming";
   const [stopping, setStopping] = useState(false);
+  const [stopError, setStopError] = useState<string | null>(null);
+  const [kickoffReady, setKickoffReady] = useState(false);
   const campaign = useMemo(
     () => extractCampaign(agent.messages),
     [agent.messages],
   );
 
-  const toolSteps = useMemo(() => {
-    const steps: Array<{ label: string; done: boolean }> = [];
-    for (const message of agent.messages) {
-      if (message.role !== "assistant") continue;
-      for (const part of message.parts) {
-        if (part.type !== "dynamic-tool") continue;
-        steps.push({
-          label: part.toolName,
-          done: part.state === "output-available",
-        });
-      }
-    }
-    return steps.slice(-12);
-  }, [agent.messages]);
+  useEffect(() => {
+    if (!working && stopping) setStopping(false);
+  }, [working, stopping]);
 
   useEffect(() => {
     if (!campaign) return;
@@ -81,28 +72,49 @@ export function CampaignCaseWorkspace({
 
   const kickoffSent = useRef(false);
   useEffect(() => {
-    if (kickoffSent.current || !agent.historyReady) return;
-    if (agent.messages.length === 0 && agent.status === "idle") {
+    if (!agent.historyReady) return;
+    if (agent.messages.length > 0) {
       kickoffSent.current = true;
-      void agent.sendMessage(campaignDemoKickoffMessage(ledgerCaseId));
+      setKickoffReady(true);
+      return;
     }
+    if (kickoffSent.current || agent.status !== "idle") return;
+    kickoffSent.current = true;
+    setKickoffReady(true);
+    void agent.sendMessage(campaignDemoKickoffMessage(ledgerCaseId));
   }, [agent, ledgerCaseId]);
 
   const stop = useCallback(() => {
     if (stopping) return;
     setStopping(true);
-    void client
-      .abort()
-      .then(() => agent.refresh())
-      .catch(() => {})
-      .finally(() => setStopping(false));
-  }, [agent, client, stopping]);
+    setStopError(null);
+    void abortConversation(agentUrl)
+      .then(({ aborted }) => {
+        if (!aborted) {
+          setStopError("Nothing was in flight to abort.");
+          setStopping(false);
+        }
+      })
+      .catch((error: Error) => {
+        setStopError(error.message);
+        setStopping(false);
+      });
+  }, [agentUrl, stopping]);
+
+  const canRerun = agent.historyReady && kickoffReady && !working;
 
   const rerun = useCallback(() => {
+    if (!canRerun) return;
     void agent.sendMessage(
       `Re-investigate ${ledgerCaseId}: load_fixture_case if needed, investigate_case, then submit_campaign.`,
     );
-  }, [agent, ledgerCaseId]);
+  }, [agent, canRerun, ledgerCaseId]);
+
+  function handleSubmit(message: PromptInputMessage) {
+    const text = message.text.trim();
+    if (!text || working || !agent.historyReady) return;
+    void agent.sendMessage(text);
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -110,7 +122,9 @@ export function CampaignCaseWorkspace({
         <ShieldAlertIcon className="size-4 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium text-sm">
-            {session?.headline ?? session?.title ?? `Campaign · ${ledgerCaseId}`}
+            {session?.headline ??
+              session?.title ??
+              `Campaign · ${ledgerCaseId}`}
           </p>
           <p className="truncate text-muted-foreground text-xs">
             Ledger case {ledgerCaseId} · {owner}/{repo}
@@ -145,21 +159,27 @@ export function CampaignCaseWorkspace({
             {stopping ? "Stopping…" : "Stop"}
           </Button>
         ) : (
-          <Button className="gap-1.5" onClick={rerun} size="sm" variant="outline">
+          <Button
+            className="gap-1.5"
+            disabled={!canRerun}
+            onClick={rerun}
+            size="sm"
+            variant="outline"
+          >
             <PlayIcon className="size-3.5" />
             Re-run
           </Button>
         )}
       </div>
 
-      {agent.error && (
+      {(agent.error || stopError) && (
         <div className="border-b bg-destructive/10 px-6 py-2 text-destructive text-sm">
-          {agent.error.message}
+          {agent.error?.message ?? stopError}
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-6">
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6 lg:px-6">
           <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">
             <p className="font-medium">Supply-chain campaign demo</p>
             <p className="mt-1 text-muted-foreground text-pretty">
@@ -173,40 +193,45 @@ export function CampaignCaseWorkspace({
           {campaign ? (
             <CampaignResultView campaign={campaign} />
           ) : (
-            <div className="space-y-4 text-sm">
-              <div className="space-y-1">
-                <p className="font-medium">
-                  {working
-                    ? "Investigating the PR sequence…"
-                    : "Waiting for campaign result"}
-                </p>
-                <p className="text-muted-foreground text-pretty">
-                  Specialists fan out over the fixture (graph, provenance, CI),
-                  then compose one scored campaign with policy actions.
-                </p>
-              </div>
-              {(working || toolSteps.length > 0) && (
-                <ChainOfThought defaultOpen>
-                  <ChainOfThoughtHeader>
-                    {working ? "Control plane" : "Last run"}
-                  </ChainOfThoughtHeader>
-                  <ChainOfThoughtContent>
-                    {toolSteps.length === 0 && working && (
-                      <ChainOfThoughtStep label="Starting" status="active" />
-                    )}
-                    {toolSteps.map((step, index) => (
-                      <ChainOfThoughtStep
-                        key={`${step.label}-${index}`}
-                        label={step.label}
-                        status={step.done ? "complete" : "active"}
-                      />
-                    ))}
-                  </ChainOfThoughtContent>
-                </ChainOfThought>
-              )}
+            <div className="space-y-1 text-sm">
+              <p className="font-medium">
+                {working
+                  ? "Investigating the PR sequence…"
+                  : kickoffReady
+                    ? "Waiting for campaign result"
+                    : "Preparing investigation…"}
+              </p>
+              <p className="text-muted-foreground text-pretty">
+                Specialists fan out over the fixture (graph, provenance, CI),
+                then compose one scored campaign with policy actions. Follow the
+                transcript below if the structured result is delayed.
+              </p>
             </div>
           )}
         </div>
+
+        <div className="border-t">
+          <Transcript messages={agent.messages} status={agent.status} />
+        </div>
+      </div>
+
+      <div className="border-t px-4 py-3 lg:px-6">
+        <PromptInput className="mx-auto max-w-3xl" onSubmit={handleSubmit}>
+          <PromptInputBody>
+            <PromptInputTextarea
+              disabled={!agent.historyReady || working}
+              placeholder="Ask about the campaign, or nudge submit_campaign…"
+            />
+          </PromptInputBody>
+          <PromptInputFooter>
+            <PromptInputTools />
+            <PromptInputSubmit
+              disabled={stopping || !agent.historyReady}
+              onStop={stop}
+              status={working ? "streaming" : "ready"}
+            />
+          </PromptInputFooter>
+        </PromptInput>
       </div>
     </div>
   );

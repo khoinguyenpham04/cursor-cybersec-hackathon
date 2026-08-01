@@ -43,6 +43,7 @@ import {
   DotsThreeOutlineIcon,
   GitPullRequestIcon,
   PlusCircleIcon,
+  ShieldWarningIcon,
   TrashIcon,
   TreeStructureIcon,
 } from "@phosphor-icons/react"
@@ -208,7 +209,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     render={<Link href={href} />}
                     title={session.headline ?? session.prTitle ?? session.title}
                   >
-                    <GitPullRequestIcon />
+                    {kind === "campaign" ? (
+                      <ShieldWarningIcon />
+                    ) : (
+                      <GitPullRequestIcon />
+                    )}
                     <span className="truncate">
                       {session.headline ?? session.prTitle ?? session.title}
                     </span>
