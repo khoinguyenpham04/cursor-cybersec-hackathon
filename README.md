@@ -70,4 +70,3 @@ cd web && npm run build && npm start          # set FLUE_SERVER_URL to the agent
 The agent stores conversations in SQLite at `agent/data/flue.db` (see
 `agent/src/db.ts` to swap in Postgres). The agent router has no built-in auth —
 add middleware in `agent/src/app.ts` before exposing it beyond localhost.
-# cursor-cybersec-hackathon
