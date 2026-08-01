@@ -58,20 +58,22 @@ export function CampaignCaseWorkspace({
     [agent.messages],
   );
 
-  // Persist repo/kind so shared links and updateSession stubs don't orphan to /review.
+  // Persist kind/ledger; fill repo only when missing so a mismatched URL can't rebind the case.
   useEffect(() => {
     updateSession(sessionId, {
       kind: "campaign",
-      repo: repoRef,
+      ...(session?.repo ? {} : { repo: repoRef }),
       ledgerCaseId,
       pr: session?.pr ?? "",
       title: session?.title ?? `Campaign · ${ledgerCaseId}`,
     });
-  }, [sessionId, repoRef, ledgerCaseId, session?.pr, session?.title]);
+  }, [sessionId, repoRef, ledgerCaseId, session?.repo, session?.pr, session?.title]);
 
   useEffect(() => {
-    if (!working && stopping) setStopping(false);
-  }, [working, stopping]);
+    if (working) return;
+    if (stopping) setStopping(false);
+    if (stopError) setStopError(null);
+  }, [working, stopping, stopError]);
 
   useEffect(() => {
     if (!stopping) return;
@@ -87,13 +89,13 @@ export function CampaignCaseWorkspace({
     const caseId = safeLedgerCaseId(campaign.caseId || ledgerCaseId);
     updateSession(sessionId, {
       kind: "campaign",
-      repo: repoRef,
+      ...(session?.repo ? {} : { repo: repoRef }),
       ledgerCaseId: caseId,
       campaignScore: campaign.campaignScore,
       headline: campaign.headline,
       title: campaign.headline ?? `Campaign · ${caseId}`,
     });
-  }, [campaign, sessionId, repoRef, ledgerCaseId]);
+  }, [campaign, sessionId, repoRef, ledgerCaseId, session?.repo]);
 
   const kickoffSent = useRef(false);
   useEffect(() => {

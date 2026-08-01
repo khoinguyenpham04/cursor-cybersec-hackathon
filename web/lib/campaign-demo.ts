@@ -63,7 +63,8 @@ export function findOpenCampaignDemo(
 
 /**
  * Reuse an open campaign case for this repo+fixture, or create one.
- * Always re-reads localStorage so double-clicks don't duplicate fan-out.
+ * Uses a fresh sessions snapshot (in-memory cache after save) so same-tab
+ * double-clicks don't duplicate fan-out.
  */
 export function ensureCampaignDemoSession(
   owner: string,

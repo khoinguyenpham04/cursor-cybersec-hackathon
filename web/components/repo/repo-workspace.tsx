@@ -85,8 +85,10 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
   const [stopError, setStopError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!scanning && stopping) setStopping(false);
-  }, [scanning, stopping]);
+    if (scanning) return;
+    if (stopping) setStopping(false);
+    if (stopError) setStopError(null);
+  }, [scanning, stopping, stopError]);
 
   useEffect(() => {
     if (!stopping) return;
