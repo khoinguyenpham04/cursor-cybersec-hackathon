@@ -65,7 +65,10 @@ caseId: ${caseId ?? '(none)'}.
 runId: ${runId ?? '(none)'}.
 
 Follow the campaign-orchestrator skill exactly.
-When the user asks for the boiling-frog / fixture demo, load caseId "fixture-boiling-frog".
+Resolve caseId from the user message:
+- "demo-self-repo-8-11" / product-repo sequence / PRs #8–#11 → load that caseId
+- "fixture-boiling-frog" / classic boiling-frog / acme → load that caseId
+- If the user says "Review <caseId>", use that exact caseId with load_fixture_case
 
 Protocol:
 1) load_fixture_case (if needed) → read_case → set_review_context({ caseId })
