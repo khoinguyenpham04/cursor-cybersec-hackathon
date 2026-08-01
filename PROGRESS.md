@@ -4,7 +4,7 @@ Goal: a single, judge-ready path that shows **PR review → repo scan → campai
 page** without dead ends. Update checkboxes as we close items. Keep this file
 on `main`.
 
-Last reviewed: 2026-08-01 (cases-surface PR — case tabs + escalate).
+Last reviewed: 2026-08-01 (Orca clarity — brand + demo spine).
 
 ---
 
@@ -12,18 +12,17 @@ Last reviewed: 2026-08-01 (cases-surface PR — case tabs + escalate).
 
 | # | Beat | Happy path today | Ready? |
 |---|---|---|---|
-| 1 | **PR review** | `/` → Demo review (mock) **or** paste live `owner/repo#N` → nested case | Mostly |
-| 2 | **Repo scan** | `/` → Scan this app’s own repo → Overview → Run scan → Map → Build graph → Deps | Mostly |
-| 3 | **Campaign** | Overview/Cases → **Investigate sequence** → case tabs (Orchestration → Report + Escalate) | Ready |
+| 1 | **Repo scan** | `/` → **Start demo spine** → Overview → Run scan → Map → Build graph | Mostly |
+| 2 | **PR review** | Cases → boiling-frog **#9** (default); #8–#11 listed | Mostly |
+| 3 | **Campaign** | **Investigate sequence** → Orchestration → Report + Escalate | Ready |
 
 Script for rehearsals (copy into a runbook slide if needed):
 
-1. Open http://localhost:3000 — start **Demo review**, show findings + Diff.
-2. Back home → **Scan this app’s own repo** → Overview status cards.
-3. **Run scan** → Map canvas → **Build graph** → Dependencies.
-4. **Investigate sequence** → Orchestration → Report + Escalate; Overview shows
+1. Open http://localhost:3000 → **Start demo spine** → **1 · Run scan** → Map → Build graph.
+2. Cases → open **#9 · start here** (optional: glance #8/#10/#11).
+3. **Investigate sequence** → Orchestration → Report + Escalate; Overview shows
    fixture caveat and demo PR #8–#11 mapping.
-5. Optional: `cd agent && npm run eval:fixture` beforehand (no LLM burn).
+4. Optional: `cd agent && npm run eval:fixture` beforehand (no LLM burn).
 
 ---
 
@@ -64,12 +63,10 @@ Script for rehearsals (copy into a runbook slide if needed):
 
 - [x] **Campaign sequence visualization** — Overview timeline + capability deltas
       with demo PR #8–#11 mapping (fixture numbers 412/419/430).
-- [ ] **Unify branding** — sidebar still says “PR Reviewer”; home says “New
-      scan”. One product name across shell + README.
-- [ ] **Remove or hide `/dashboard`** shadcn sample from the sidebar (“Dashboard
-      demo”) so the walkthrough has no dead turns.
-- [ ] **Overview copy** that names the three beats in order (Review → Scan →
-      Campaign) as the intended demo spine.
+- [x] **Unify branding** — product name **Orca** across shell, home, README.
+- [x] **Remove or hide `/dashboard`** shadcn sample from the sidebar.
+- [x] **Overview copy** names Scan → Review (#9) → Investigate as the demo spine.
+- [x] **Cases quick-links** for live PRs #8–#11 with #9 as demo default.
 
 ### P2 — Reliability / depth
 
@@ -110,7 +107,7 @@ _Fill in as we practice._
 |---|---|---|---|
 | | Demo review → SELF_REPO scan → Investigate sequence | | |
 
-**Canonical live PR (optional beat 1):** `_tbd_`
+**Canonical live PR (beat 2):** `#9` (transitive postinstall)
 
 **Owners:** `_tbd_`
 
@@ -118,8 +115,7 @@ _Fill in as we practice._
 
 ## Suggested next PR slices
 
-1. `docs/walkthrough` — this file + README (done when committed).
-2. `ui/campaign-timeline` — PR sequence viz from boiling-frog fixture.
-3. `ui/brand-cleanup` — rename shell, remove dashboard demo link.
-4. `demo/offline-scan` — mock Map/Deps path for zero-network pitch.
-5. `ingest/fixture-loader` — second case or upload tool for “real ingest” story.
+1. ~~`ui/brand-cleanup`~~ — Orca + spine + Cases #8–#11 (this pass).
+2. `demo/offline-scan` — mock Map/Deps path for zero-network pitch.
+3. `ingest/fixture-loader` — bind Investigate sequence to live #8–#11.
+4. Rehearse cold + fill Rehearsal notes (P0).

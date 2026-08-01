@@ -2,7 +2,39 @@
 
 export const BOILING_FROG_CASE_ID = "fixture-boiling-frog";
 
-const DEMO_REPO = "khoinguyenpham04/cursor-cybersec-hackathon";
+export const DEMO_REPO = "khoinguyenpham04/cursor-cybersec-hackathon";
+
+/** Live substrate PRs for the judge walkthrough (Cases quick-links). */
+export const DEMO_SEQUENCE_PRS = [
+  {
+    number: 8,
+    title: "Add http-helper",
+    blurb: "Looks harmless",
+  },
+  {
+    number: 9,
+    title: "Bump + transitive postinstall",
+    blurb: "Demo default",
+    recommended: true,
+  },
+  {
+    number: 10,
+    title: "CI write + billing secret",
+    blurb: "Blast radius",
+  },
+  {
+    number: 11,
+    title: "Wire helper into billing",
+    blurb: "Secret path",
+  },
+] as const;
+
+/** Canonical single-PR beat for a short pitch. */
+export const DEMO_DEFAULT_PR = 9;
+
+export function isDemoRepo(owner: string, repo: string): boolean {
+  return `${owner}/${repo}`.toLowerCase() === DEMO_REPO.toLowerCase();
+}
 
 export type FixtureTimelinePr = {
   prNumber: number;

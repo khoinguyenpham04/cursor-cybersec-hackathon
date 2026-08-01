@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DEMO_SPINE, PRODUCT_NAME, PRODUCT_TAGLINE } from "@/lib/brand";
 import { MOCK_PR_REF, newMockSessionId } from "@/lib/mock-review";
 import { formatPrRef, parsePrRef } from "@/lib/pr";
 import { saveRepo, SELF_REPO } from "@/lib/repos";
@@ -95,11 +96,12 @@ export function NewRepoForm() {
         <div className="flex size-12 items-center justify-center rounded-xl border bg-muted">
           <ScanSearchIcon className="size-6 text-primary" />
         </div>
-        <h1 className="font-semibold text-2xl tracking-tight">Map a codebase</h1>
-        <p className="max-w-md text-muted-foreground text-sm">
-          Point it at a repository to build an architecture map and a dependency
-          graph with vulnerability and provenance signals — or paste a pull
-          request to review it.
+        <h1 className="font-semibold text-2xl tracking-tight">{PRODUCT_NAME}</h1>
+        <p className="max-w-md text-muted-foreground text-sm text-pretty">
+          {PRODUCT_TAGLINE}
+        </p>
+        <p className="max-w-md text-foreground text-sm text-pretty">
+          {DEMO_SPINE}
         </p>
       </div>
       <form className="flex w-full max-w-xl items-center gap-2" onSubmit={submit}>
@@ -120,9 +122,9 @@ export function NewRepoForm() {
       </form>
       {error && <p className="text-destructive text-sm">{error}</p>}
       <div className="flex flex-wrap items-center justify-center gap-2">
-        <Button className="gap-1.5" onClick={openSelf} size="sm" variant="outline">
+        <Button className="gap-1.5" onClick={openSelf} size="sm" variant="default">
           <BinaryIcon className="size-3.5" />
-          Scan this app&apos;s own repo
+          Start demo spine
         </Button>
         <Button
           className="gap-1.5 text-muted-foreground"
@@ -131,7 +133,7 @@ export function NewRepoForm() {
           variant="ghost"
         >
           <PlayIcon className="size-3.5" />
-          Demo review
+          Offline review backup
         </Button>
       </div>
     </div>

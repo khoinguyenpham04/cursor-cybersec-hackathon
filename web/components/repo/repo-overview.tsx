@@ -3,6 +3,7 @@
 import { type DepGraphData } from "@/components/repo/dep-graph-canvas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DEMO_SPINE } from "@/lib/brand";
 import { type ScanResult } from "@/lib/scan";
 import { cn } from "@/lib/utils";
 import {
@@ -56,9 +57,13 @@ export function RepoOverview({
             <LayoutDashboardIcon className="size-4 shrink-0 text-muted-foreground" />
             <h2 className="font-semibold text-lg">Overview</h2>
           </div>
+          <p className="text-foreground text-sm text-pretty font-medium">
+            {DEMO_SPINE}
+          </p>
           <p className="text-muted-foreground text-sm text-pretty">
-            Detect campaign-shaped supply-chain risk across a PR sequence — or
-            open Map, Dependencies, and Cases for the supporting views.
+            1) Run scan → Map/Deps · 2) Cases → open PR{" "}
+            <span className="font-medium text-foreground">#9</span> · 3)
+            Investigate sequence → Report + Escalate.
           </p>
         </div>
 
@@ -111,19 +116,11 @@ export function RepoOverview({
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-          <Button
-            className="w-full gap-1.5 sm:w-auto"
-            onClick={onInvestigateSequence}
-          >
-            <ShieldAlertIcon className="size-4" />
-            Investigate sequence
-          </Button>
           {scanning ? (
             <Button
               className="w-full gap-1.5 sm:w-auto"
               disabled={stopping}
               onClick={onStopScan}
-              variant="outline"
             >
               <SquareIcon className="size-4" />
               {stopping ? "Stopping…" : "Stop scan"}
@@ -133,14 +130,13 @@ export function RepoOverview({
               className="w-full gap-1.5 sm:w-auto"
               disabled={!scanReady}
               onClick={onScan}
-              variant="outline"
             >
               {scan ? (
                 <RefreshCwIcon className="size-4" />
               ) : (
                 <PlayIcon className="size-4" />
               )}
-              {scan ? "Rescan" : "Run scan"}
+              {scan ? "Rescan" : "1 · Run scan"}
             </Button>
           )}
           <Button
@@ -164,7 +160,15 @@ export function RepoOverview({
             variant="outline"
           >
             <GitPullRequestIcon className="size-4" />
-            New case
+            2 · Cases / review
+          </Button>
+          <Button
+            className="w-full gap-1.5 sm:w-auto"
+            onClick={onInvestigateSequence}
+            variant="outline"
+          >
+            <ShieldAlertIcon className="size-4" />
+            3 · Investigate sequence
           </Button>
         </div>
       </div>
