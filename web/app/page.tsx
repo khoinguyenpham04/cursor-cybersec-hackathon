@@ -1,12 +1,12 @@
-import { SiteHeader } from "@/components/site-header";
+import { NewRepoForm } from "@/components/repo/new-repo-form";
 import { AppShell } from "@/components/review/app-shell";
-import { NewReviewForm } from "@/components/review/new-review-form";
+import { SiteHeader } from "@/components/site-header";
 
 export default function HomePage() {
   return (
     <AppShell>
-      <SiteHeader title="New review" />
-      <NewReviewForm />
+      <SiteHeader title="New scan" />
+      <NewRepoForm />
     </AppShell>
   );
 }

@@ -56,7 +56,6 @@ export interface RepoIngest {
 }
 
 const CACHE_DIR = './data/repos';
-const CACHE_TTL_MS = 15 * 60_000;
 const MAX_KEY_FILES = 40;
 const KEY_FILE_CONCURRENCY = 4;
 
@@ -109,14 +108,18 @@ function pickKeyFiles(tree: RepoIngest['tree']): string[] {
 	return matches.slice(0, MAX_KEY_FILES);
 }
 
+/**
+ * Offline-first: a cached ingest is served as-is however old it is, and GitHub
+ * is touched only when there is no cache or the caller passes `force`.
+ * Ingesting is a big job the user triggers deliberately — nothing here
+ * refreshes on a timer or behind their back.
+ */
 export async function ingestRepo(
 	ref: RepoRef,
 	options: { force?: boolean } = {},
 ): Promise<RepoIngest> {
 	const cached = await loadCache(ref);
-	if (!options.force && cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
-		return cached;
-	}
+	if (cached && !options.force) return cached;
 
 	const repoResponse = await ghFetch(`/repos/${ref.owner}/${ref.repo}`);
 	const repo = (await repoResponse.json()) as Record<string, any>;
@@ -127,13 +130,6 @@ export async function ingestRepo(
 	);
 	const branch = (await branchResponse.json()) as Record<string, any>;
 	const headSha = branch.commit?.sha as string;
-
-	// Same head as the cache: refresh the timestamp instead of refetching.
-	if (!options.force && cached && cached.headSha === headSha) {
-		const refreshed = { ...cached, fetchedAt: Date.now() };
-		await saveCache(refreshed);
-		return refreshed;
-	}
 
 	const treeResponse = await ghFetch(
 		`/repos/${ref.owner}/${ref.repo}/git/trees/${headSha}?recursive=1`,
