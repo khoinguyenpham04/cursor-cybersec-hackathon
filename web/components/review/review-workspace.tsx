@@ -10,6 +10,7 @@ import {
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
 import { CaseOrchestration } from "@/components/case/case-orchestration";
+import { CasePanel, CasePanelState } from "@/components/case/case-panel";
 import { CaseShell } from "@/components/case/case-shell";
 import { DiffViewer, type FindingAnchor } from "@/components/review/diff-viewer";
 import {
@@ -264,7 +265,10 @@ export function ReviewWorkspace({
 
   const promptFooter = (
     <div className="border-t px-4 py-3 lg:px-6">
-      <PromptInput className="mx-auto max-w-3xl" onSubmit={handleSubmit}>
+      <PromptInput
+        className={embedded ? "mx-auto max-w-2xl" : "mx-auto max-w-3xl"}
+        onSubmit={handleSubmit}
+      >
         <PromptInputBody>
           <PromptInputTextarea
             disabled={!agent.historyReady}
@@ -295,32 +299,40 @@ export function ReviewWorkspace({
           <CaseOrchestration messages={agent.messages} status={agent.status} />
         }
         overview={
-          <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-6 lg:px-6">
+          <CasePanel>
             <div className="space-y-1">
-              <h2 className="font-semibold text-lg">PR overview</h2>
-              <p className="text-muted-foreground text-sm text-pretty">
+              <h2 className="font-semibold text-base">PR overview</h2>
+              <p className="text-muted-foreground text-sm text-pretty leading-relaxed">
                 {prData?.meta?.title ??
                   "Pull request metadata loads from GitHub when available."}
               </p>
             </div>
             {prData?.meta ? (
-              <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                <div>
-                  <dt className="text-muted-foreground text-xs">Author</dt>
+              <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                <div className="space-y-0.5">
+                  <dt className="text-muted-foreground text-xs uppercase tracking-wide">
+                    Author
+                  </dt>
                   <dd>{prData.meta.author}</dd>
                 </div>
-                <div>
-                  <dt className="text-muted-foreground text-xs">Branches</dt>
+                <div className="space-y-0.5">
+                  <dt className="text-muted-foreground text-xs uppercase tracking-wide">
+                    Branches
+                  </dt>
                   <dd>
                     {prData.meta.headBranch} → {prData.meta.baseBranch}
                   </dd>
                 </div>
-                <div>
-                  <dt className="text-muted-foreground text-xs">Files</dt>
+                <div className="space-y-0.5">
+                  <dt className="text-muted-foreground text-xs uppercase tracking-wide">
+                    Files
+                  </dt>
                   <dd>{prData.meta.changedFiles}</dd>
                 </div>
-                <div>
-                  <dt className="text-muted-foreground text-xs">Diff</dt>
+                <div className="space-y-0.5">
+                  <dt className="text-muted-foreground text-xs uppercase tracking-wide">
+                    Diff
+                  </dt>
                   <dd>
                     <span className="text-emerald-600">
                       +{prData.meta.additions}
@@ -336,32 +348,32 @@ export function ReviewWorkspace({
                 {prLoading ? "Loading PR…" : prError ?? "Waiting for PR ref…"}
               </p>
             )}
-          </div>
+          </CasePanel>
         }
         report={
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 overflow-y-auto border-b px-4 py-6 lg:px-6">
-              <div className="mx-auto w-full max-w-2xl">
-                {review ? (
+            <div className="min-h-0 flex-1 overflow-y-auto border-b">
+              {review ? (
+                <CasePanel>
                   <ReviewReport
                     onJumpToFinding={jumpToFinding}
                     review={review}
                   />
-                ) : (
-                  <div className="space-y-1 text-sm">
-                    <p className="font-medium">
-                      {working ? "Report pending" : "No review report yet"}
-                    </p>
-                    <p className="text-muted-foreground text-pretty">
+                </CasePanel>
+              ) : (
+                <CasePanelState
+                  description={
+                    <>
                       Structured findings appear after{" "}
                       <code className="text-xs">submit_review</code>. Use
                       Orchestration or Transcript meanwhile.
-                    </p>
-                  </div>
-                )}
-              </div>
+                    </>
+                  }
+                  title={working ? "Report pending" : "No review report yet"}
+                />
+              )}
             </div>
-            <div className="min-h-[40%] min-h-0 flex-1">
+            <div className="min-h-[40%] flex-1">
               <DiffViewer
                 anchor={anchor}
                 error={prError}
@@ -379,6 +391,7 @@ export function ReviewWorkspace({
         }
         transcript={
           <Transcript
+            contentClassName="mx-auto w-full max-w-2xl px-4 py-6 lg:px-6"
             messages={agent.messages}
             onJumpToFinding={jumpToFinding}
             status={agent.status}

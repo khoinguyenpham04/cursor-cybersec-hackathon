@@ -9,6 +9,7 @@ import {
   ConfirmationRequest,
   ConfirmationTitle,
 } from "@/components/ai-elements/confirmation";
+import { MessageResponse } from "@/components/ai-elements/message";
 import type { RecommendedAction } from "@/lib/campaign";
 import {
   getDecision,
@@ -62,33 +63,40 @@ export function CaseEscalate({
   }
 
   return (
-    <Confirmation approval={approval} state={state}>
+    <Confirmation approval={approval} className="items-stretch" state={state}>
       <ConfirmationRequest>
-        <ConfirmationTitle>
-          Escalate <strong>{primary.action}</strong> on{" "}
-          <strong>{primary.target}</strong>? Demo-safe — not sent to GitHub.
-        </ConfirmationTitle>
-        <p className="text-muted-foreground text-xs text-pretty">
-          {primary.rationale}
-        </p>
-        <ConfirmationActions>
-          <ConfirmationAction onClick={() => decide(false)} variant="outline">
-            Dismiss
-          </ConfirmationAction>
-          <ConfirmationAction onClick={() => decide(true)} variant="default">
-            Escalate
-          </ConfirmationAction>
-        </ConfirmationActions>
+        <div className="flex w-full flex-col gap-2">
+          <ConfirmationTitle>
+            Escalate{" "}
+            <span className="font-semibold">
+              {primary.action.replaceAll("_", " ")}
+            </span>{" "}
+            on <span className="font-semibold">{primary.target}</span>? Demo-safe
+            — not sent to GitHub.
+          </ConfirmationTitle>
+          <MessageResponse className="text-muted-foreground text-xs leading-relaxed [&>p]:my-0">
+            {primary.rationale}
+          </MessageResponse>
+          <ConfirmationActions className="mt-1">
+            <ConfirmationAction onClick={() => decide(false)} variant="outline">
+              Dismiss
+            </ConfirmationAction>
+            <ConfirmationAction onClick={() => decide(true)} variant="default">
+              Escalate
+            </ConfirmationAction>
+          </ConfirmationActions>
+        </div>
       </ConfirmationRequest>
       <ConfirmationAccepted>
         <ConfirmationTitle>
-          Escalated in demo — {primary.action} on {primary.target} (not sent to
-          GitHub).
+          Escalated in demo — {primary.action.replaceAll("_", " ")} on{" "}
+          {primary.target} (not sent to GitHub).
         </ConfirmationTitle>
       </ConfirmationAccepted>
       <ConfirmationRejected>
         <ConfirmationTitle>
-          Escalation dismissed for {primary.action} on {primary.target}.
+          Escalation dismissed for {primary.action.replaceAll("_", " ")} on{" "}
+          {primary.target}.
         </ConfirmationTitle>
       </ConfirmationRejected>
     </Confirmation>

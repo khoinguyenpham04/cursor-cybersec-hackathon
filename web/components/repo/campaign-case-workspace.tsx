@@ -272,10 +272,17 @@ export function CampaignCaseWorkspace({
       }
       resetDefaultSignal={resetDefaultSignal}
       toolbar={toolbar}
-      transcript={<Transcript messages={agent.messages} status={agent.status} />}
+      transcript={
+        <Transcript
+          contentClassName="mx-auto w-full max-w-2xl px-4 py-6 lg:px-6"
+          messages={agent.messages}
+          status={agent.status}
+          waitingLabel="Investigating the campaign…"
+        />
+      }
       transcriptFooter={
         <div className="border-t px-4 py-3 lg:px-6">
-          <PromptInput className="mx-auto max-w-3xl" onSubmit={handleSubmit}>
+          <PromptInput className="mx-auto max-w-2xl" onSubmit={handleSubmit}>
             <PromptInputBody>
               <PromptInputTextarea
                 disabled={!agent.historyReady || working}

@@ -27,6 +27,7 @@ import {
   ToolInput,
   ToolOutput,
 } from "@/components/ai-elements/tool";
+import { CasePanel } from "@/components/case/case-panel";
 import { Badge } from "@/components/ui/badge";
 import {
   extractOrchestration,
@@ -64,7 +65,7 @@ export function CaseOrchestration({
     model.steps.filter((step) => step.parentId === id);
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-6 lg:px-6">
+    <CasePanel className="gap-4">
       <Plan defaultOpen isStreaming={model.streaming}>
         <PlanHeader>
           <div className="min-w-0 flex-1 space-y-1">
@@ -97,7 +98,7 @@ export function CaseOrchestration({
           ))}
         </PlanContent>
       </Plan>
-    </div>
+    </CasePanel>
   );
 }
 

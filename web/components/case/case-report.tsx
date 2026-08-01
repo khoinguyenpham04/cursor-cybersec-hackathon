@@ -7,13 +7,12 @@ import {
   ArtifactHeader,
   ArtifactTitle,
 } from "@/components/ai-elements/artifact";
-import { CaseEscalate } from "@/components/case/case-escalate";
-import { Badge } from "@/components/ui/badge";
-import {
-  trailLabel,
-  type CampaignResult,
-} from "@/lib/campaign";
+import { MessageResponse } from "@/components/ai-elements/message";
 import { Shimmer } from "@/components/ai-elements/shimmer";
+import { CaseEscalate } from "@/components/case/case-escalate";
+import { CasePanel, CasePanelState } from "@/components/case/case-panel";
+import { Badge } from "@/components/ui/badge";
+import { trailLabel, type CampaignResult } from "@/lib/campaign";
 
 export type ReportPhase = "pending" | "ready" | "failed";
 
@@ -30,37 +29,34 @@ export function CaseReport({
 }) {
   if (phase === "pending") {
     return (
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 px-4 py-6 lg:px-6">
-        <p className="font-medium text-sm">
-          <Shimmer duration={1.5}>Report pending</Shimmer>
-        </p>
-        <p className="text-muted-foreground text-sm text-pretty">
-          {message ??
-            "Investigation in progress — Orchestration shows live tools until submit_campaign settles."}
-        </p>
-      </div>
+      <CasePanelState
+        description={
+          message ??
+          "Investigation in progress — Orchestration shows live tools until submit_campaign settles."
+        }
+        title={<Shimmer duration={1.5}>Report pending</Shimmer>}
+      />
     );
   }
 
   if (phase === "failed" || !campaign) {
     return (
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 px-4 py-6 lg:px-6">
-        <p className="font-medium text-sm text-destructive">
-          Campaign not finalized
-        </p>
-        <p className="text-muted-foreground text-sm text-pretty">
-          {message ??
-            "No parseable submit_campaign output. Check Transcript for errors, or Re-run."}
-        </p>
-      </div>
+      <CasePanelState
+        description={
+          message ??
+          "No parseable submit_campaign output. Check Transcript for errors, or Re-run."
+        }
+        title="Campaign not finalized"
+        tone="danger"
+      />
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-6 lg:px-6">
+    <CasePanel>
       <Artifact>
         <ArtifactHeader>
-          <div className="min-w-0 space-y-1">
+          <div className="min-w-0 flex-1 space-y-1">
             <ArtifactTitle>
               {campaign.headline ?? "Campaign report"}
             </ArtifactTitle>
@@ -73,7 +69,7 @@ export function CaseReport({
         <ArtifactContent className="space-y-5">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline">
-              {campaign.verdict.replace("_", " ")}
+              {campaign.verdict.replaceAll("_", " ")}
             </Badge>
             <Badge variant="secondary">score {campaign.campaignScore}</Badge>
             {campaign.topSeverity && (
@@ -85,33 +81,44 @@ export function CaseReport({
               </Badge>
             )}
           </div>
-          <p className="text-sm text-pretty whitespace-pre-wrap">
-            {campaign.narrative}
-          </p>
-          <div className="space-y-2">
-            <h3 className="font-medium text-sm">Recommended actions</h3>
+
+          <section className="space-y-2">
+            <h3 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+              Narrative
+            </h3>
+            <MessageResponse className="text-sm leading-relaxed [&>ul]:my-2 [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:my-2 [&>ol]:list-decimal [&>ol]:pl-5 [&>p]:my-2 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 [&>pre]:my-2 [&>pre]:overflow-x-auto">
+              {campaign.narrative}
+            </MessageResponse>
+          </section>
+
+          <section className="space-y-2">
+            <h3 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+              Recommended actions
+            </h3>
             <ul className="flex flex-col gap-2">
               {campaign.recommendedActions.map((action, index) => (
                 <li
-                  className="rounded-lg border px-3 py-2 text-sm"
+                  className="rounded-lg border px-3 py-2.5"
                   key={`${action.action}-${action.target}-${index}`}
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge className="text-[10px]" variant="outline">
-                      {action.action}
+                      {action.action.replaceAll("_", " ")}
                     </Badge>
                     <Badge className="text-[10px]" variant="secondary">
                       {action.priority}
                     </Badge>
-                    <span className="font-medium">{action.target}</span>
+                    <span className="min-w-0 flex-1 font-medium text-sm">
+                      {action.target}
+                    </span>
                   </div>
-                  <p className="mt-1 text-muted-foreground text-pretty">
+                  <MessageResponse className="mt-1.5 text-muted-foreground text-sm leading-relaxed [&>p]:my-0">
                     {action.rationale}
-                  </p>
+                  </MessageResponse>
                 </li>
               ))}
             </ul>
-          </div>
+          </section>
         </ArtifactContent>
       </Artifact>
 
@@ -119,7 +126,7 @@ export function CaseReport({
         actions={campaign.recommendedActions}
         caseId={sessionId}
       />
-    </div>
+    </CasePanel>
   );
 }
 
