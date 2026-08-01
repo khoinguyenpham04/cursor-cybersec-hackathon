@@ -88,11 +88,13 @@ Open each PR as a **live review** in the product (`owner/repo#N`):
 
 Backup if models/GitHub flake: Home → **Demo review** (offline mock).
 
-### Beat 3 — Campaign
+### Beat 3 — Campaign (case surface)
 
 1. Same repo → Overview or Cases → **Investigate sequence**.
-2. Wait for `submit_campaign`.
-3. Walk **score**, **trail**, **recommended actions**, and specialist tools in the transcript.
+2. Case opens on **Orchestration** — watch `load_fixture_case` → `investigate_case` → specialists (from coverage) → `submit_campaign`.
+3. Auto-lands on **Report** — walk score, trail, narrative, recommended actions; click **Escalate** (demo-safe, not sent to GitHub).
+4. **Overview** tab — fixture caveat + timeline mapped to demo PRs #8–#11.
+5. **Transcript** remains the escape hatch if you need to nudge the agent.
 
 **Say (important):** Campaign facts today come from the ledger fixture (`fixture-boiling-frog`), which matches this PR story. Live ingest of GitHub PR history is the next product step — these four PRs are the substrate we scan/review now and will bind later.
 
@@ -137,6 +139,6 @@ demo/payments-api/
 ## After the pitch (optional)
 
 - [ ] Wire case ingest so Investigate sequence uses PR #8–#11 numbers
-- [ ] Campaign timeline UI (PR sequence viz next to the score)
+- [x] Campaign case tabs (Overview · Orchestration · Report · Transcript) + escalate
 - [ ] Tiny root CI: `eval:fixture` + web typecheck (not required for the demo)
 - [ ] Brand cleanup / remove `/dashboard` sample
