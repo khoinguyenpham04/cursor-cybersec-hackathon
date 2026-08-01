@@ -1,8 +1,11 @@
 {
   "name": "http-helper",
-  "version": "1.0.0",
-  "description": "Tiny retry helper for demo (boiling-frog PR1). No install scripts.",
+  "version": "1.2.0",
+  "description": "Tiny retry helper for demo (boiling-frog PR2 bump). Depends on quiet-utils.",
   "type": "module",
   "main": "index.js",
-  "exports": "./index.js"
+  "exports": "./index.js",
+  "dependencies": {
+    "quiet-utils": "file:../quiet-utils"
+  }
 }
