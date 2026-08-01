@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReviewVerdict } from "@/lib/review";
 import { useSyncExternalStore } from "react";
 
 export interface ReviewSession {
@@ -9,6 +10,10 @@ export interface ReviewSession {
   /** Display title, e.g. "vercel/next.js#1234". */
   title: string;
   createdAt: number;
+  /** The PR's real title, filled in once fetched from GitHub. */
+  prTitle?: string;
+  /** Verdict of the latest completed review in this session. */
+  verdict?: ReviewVerdict;
 }
 
 const STORAGE_KEY = "pr-review-sessions";
@@ -49,6 +54,25 @@ export function getSession(id: string): ReviewSession | undefined {
 
 export function saveSession(session: ReviewSession) {
   write([session, ...read().filter((s) => s.id !== session.id)]);
+}
+
+/** Merge fields into a stored session; no-ops when nothing would change. */
+export function updateSession(
+  id: string,
+  patch: Partial<Omit<ReviewSession, "id">>,
+) {
+  const sessions = read();
+  const existing = sessions.find((session) => session.id === id);
+  if (!existing) return;
+  const dirty = Object.entries(patch).some(
+    ([key, value]) => existing[key as keyof ReviewSession] !== value,
+  );
+  if (!dirty) return;
+  write(
+    sessions.map((session) =>
+      session.id === id ? { ...session, ...patch } : session,
+    ),
+  );
 }
 
 export function removeSession(id: string) {
