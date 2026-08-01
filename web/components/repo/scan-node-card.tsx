@@ -11,6 +11,8 @@ export interface ScanNodeData {
   hasIncoming: boolean;
   hasOutgoing: boolean;
   selected?: boolean;
+  /** True for a folded group stand-in (click expands it). */
+  folded?: boolean;
 }
 
 /** Favicon for external products, falling back to the kind icon on error. */
@@ -44,6 +46,7 @@ export function ScanNodeCard({ data }: { data: ScanNodeData }) {
         // (and therefore the group frames) line up exactly — see NODE_HEIGHT.
         "h-14 w-58 cursor-pointer justify-center gap-0 overflow-hidden border-l-2 px-3 py-0 transition-shadow hover:shadow-md",
         meta.accent,
+        data.folded && "border-dashed bg-muted/40",
         data.selected && "ring-2 ring-primary/60",
       )}
       // Base UI's Node renders its own handles; we place them ourselves so an

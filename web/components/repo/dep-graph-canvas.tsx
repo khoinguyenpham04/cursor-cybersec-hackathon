@@ -383,7 +383,7 @@ function DepsInner({ data }: { data: DepGraphData }) {
       </Canvas>
 
       {selected && (
-        <aside className="absolute inset-y-0 right-0 z-20 w-80 overflow-y-auto border-l bg-background/95 p-4 shadow-lg backdrop-blur">
+        <aside className="absolute inset-x-0 bottom-0 z-20 max-h-[60%] overflow-y-auto border-t bg-background/95 p-4 shadow-lg backdrop-blur sm:inset-x-auto sm:inset-y-0 sm:right-0 sm:max-h-none sm:w-80 sm:border-t-0 sm:border-l">
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
               <h3 className="truncate font-semibold text-sm">{selected.name}</h3>

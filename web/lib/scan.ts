@@ -243,6 +243,71 @@ export function extractScan(
   return null;
 }
 
+export const GROUP_NODE_PREFIX = "grp:";
+export interface FoldedScan {
+  nodes: ScanNode[];
+  edges: ScanEdge[];
+  /** Member count per folded group id, for the summary card. */
+  folded: Map<string, ScanNode[]>;
+}
+
+/**
+ * Collapses grouped nodes into one node per group. A 40-card map is more area
+ * than a viewport holds at readable zoom, so groups start folded and the user
+ * expands the one they care about.
+ */
+export function foldScanGroups(
+  scan: ScanResult,
+  collapsed: Set<string>,
+): FoldedScan {
+  const folded = new Map<string, ScanNode[]>();
+  for (const node of scan.nodes) {
+    if (!node.group || !collapsed.has(node.group)) continue;
+    const id = GROUP_NODE_PREFIX + node.group;
+    folded.set(id, [...(folded.get(id) ?? []), node]);
+  }
+  if (folded.size === 0) return { nodes: scan.nodes, edges: scan.edges, folded };
+
+  // Member id -> the group node standing in for it.
+  const standIn = new Map<string, string>();
+  for (const [groupNodeId, members] of folded) {
+    for (const member of members) standIn.set(member.id, groupNodeId);
+  }
+
+  const nodes: ScanNode[] = scan.nodes.filter((node) => !standIn.has(node.id));
+  for (const [groupNodeId, members] of folded) {
+    nodes.push({
+      id: groupNodeId,
+      label: members[0].group!,
+      // Kind drives the accent; the most common member kind reads best.
+      kind: mostCommonKind(members),
+      sub: `${members.length} nodes · click to expand`,
+    });
+  }
+
+  const seen = new Set<string>();
+  const edges: ScanEdge[] = [];
+  for (const edge of scan.edges) {
+    const from = standIn.get(edge.from) ?? edge.from;
+    const to = standIn.get(edge.to) ?? edge.to;
+    if (from === to) continue; // collapsed intra-group edge
+    const key = `${from}->${to}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    edges.push({ ...edge, from, to });
+  }
+
+  return { nodes, edges, folded };
+}
+
+function mostCommonKind(nodes: ScanNode[]): ScanNodeKind {
+  const counts = new Map<ScanNodeKind, number>();
+  for (const node of nodes) {
+    counts.set(node.kind, (counts.get(node.kind) ?? 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+}
+
 /** Favicon URL for a node's domain (Google's free endpoint). */
 export function faviconUrl(domain: string, size = 32): string {
   return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=${size}`;

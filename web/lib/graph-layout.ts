@@ -1,7 +1,8 @@
 // Deterministic left-to-right layered layout. React Flow ships no layout
-// engine and dagre/elk would be a new dependency for what is ~100 lines here:
-// columns come from longest-path depth, and nodes sharing a `group` are pulled
-// into one contiguous labeled stack.
+// engine and dagre/elk would be a new dependency for what is ~150 lines here:
+// columns come from BFS depth, nodes sharing a `group` are pulled into one
+// contiguous labeled stack, and over-tall columns wrap into side-by-side
+// stacks so a map stays roughly viewport-shaped.
 
 import type { ScanEdge, ScanNode } from "./scan";
 
@@ -16,6 +17,9 @@ const COLUMN_GAP = 140;
 const ROW_GAP = 28;
 const GROUP_PADDING_TOP = 26;
 const GROUP_GAP = 34;
+// Target column height before a column wraps into a second stack. Roughly a
+// laptop viewport, so a tall tier grows sideways instead of off-screen.
+const MAX_COLUMN_HEIGHT = 620;
 
 export interface Positioned {
   id: string;
@@ -39,9 +43,9 @@ export interface ScanLayout {
 }
 
 /**
- * Column per node = longest path from a root, where roots are entries, crons,
- * and anything with no incoming edge. Cycles are broken by a visited set, so a
- * mutually-referencing pair still lands somewhere sensible.
+ * Column per node = shortest path from a root, where roots are entries, crons,
+ * and anything with no incoming edge. Cycles are broken by the visited set, so
+ * a mutually-referencing pair still lands somewhere sensible.
  */
 function assignColumns(nodes: ScanNode[], edges: ScanEdge[]): Map<string, number> {
   const outgoing = new Map<string, string[]>();
@@ -61,18 +65,23 @@ function assignColumns(nodes: ScanNode[], edges: ScanEdge[]): Map<string, number
       node.kind === "entry" || node.kind === "cron" || inDegree.get(node.id) === 0,
   );
   // A fully cyclic graph has no root: start somewhere so nothing is dropped.
-  const queue: Array<{ id: string; column: number }> = (
-    roots.length > 0 ? roots : nodes.slice(0, 1)
-  ).map((node) => ({ id: node.id, column: 0 }));
+  const seeds = roots.length > 0 ? roots : nodes.slice(0, 1);
 
-  const guard = nodes.length * 8;
-  let steps = 0;
-  while (queue.length > 0 && steps++ < guard) {
+  // Shortest-path (plain BFS, first visit wins) rather than longest-path
+  // layering. Longest-path maximises depth: on a real codebase graph it
+  // stretched 33 nodes across 35 columns — a 13,000px ribbon. Distance from
+  // the nearest entry point keeps the map as shallow as the graph allows.
+  const queue: Array<{ id: string; column: number }> = seeds.map((node) => ({
+    id: node.id,
+    column: 0,
+  }));
+  for (const seed of seeds) columns.set(seed.id, 0);
+
+  while (queue.length > 0) {
     const { id, column } = queue.shift()!;
-    const current = columns.get(id);
-    if (current !== undefined && current >= column) continue;
-    columns.set(id, column);
     for (const next of outgoing.get(id) ?? []) {
+      if (columns.has(next)) continue; // already reached at an equal/shorter depth
+      columns.set(next, column + 1);
       queue.push({ id: next, column: column + 1 });
     }
   }
@@ -129,10 +138,8 @@ export function layoutScan(nodes: ScanNode[], edges: ScanEdge[]): ScanLayout {
 
   // First pass: stack each column, recording its height.
   const columnHeights = new Map<number, number>();
-  const columnPlans = new Map<
-    number,
-    Array<{ group?: string; members: ScanNode[]; height: number }>
-  >();
+  type Block = { group?: string; members: ScanNode[]; height: number };
+  const columnPlans = new Map<number, Array<{ blocks: Block[]; height: number }>>();
   for (const column of columnKeys) {
     const members = byColumn.get(String(column))!;
     const grouped = new Map<string, ScanNode[]>();
@@ -169,45 +176,66 @@ export function layoutScan(nodes: ScanNode[], edges: ScanEdge[]): ScanLayout {
       plan.push({ members: [node], height: NODE_HEIGHT });
     }
 
-    const height =
-      plan.reduce((sum, block) => sum + block.height, 0) +
-      Math.max(0, plan.length - 1) * GROUP_GAP;
-    columnPlans.set(column, plan);
-    columnHeights.set(column, height);
+    // A wide column is better than an endlessly tall one: split the blocks
+    // into side-by-side stacks once they exceed the target height. Groups are
+    // never split — a stack is the unit that has to stay together.
+    const stacks: Array<{ blocks: typeof plan; height: number }> = [];
+    let current: typeof plan = [];
+    let currentHeight = 0;
+    for (const block of plan) {
+      const added = current.length === 0 ? block.height : block.height + GROUP_GAP;
+      if (current.length > 0 && currentHeight + added > MAX_COLUMN_HEIGHT) {
+        stacks.push({ blocks: current, height: currentHeight });
+        current = [block];
+        currentHeight = block.height;
+      } else {
+        current.push(block);
+        currentHeight += added;
+      }
+    }
+    if (current.length > 0) stacks.push({ blocks: current, height: currentHeight });
+
+    columnPlans.set(column, stacks);
+    columnHeights.set(column, Math.max(0, ...stacks.map((stack) => stack.height)));
   }
 
-  // Second pass: center every column against the tallest one.
+  // Second pass: place each column's stacks side by side, centred vertically
+  // against the tallest column.
   const tallest = Math.max(...columnHeights.values());
+  let x = 0;
   for (const column of columnKeys) {
-    const plan = columnPlans.get(column)!;
-    const x = column * (NODE_WIDTH + COLUMN_GAP);
-    let y = (tallest - columnHeights.get(column)!) / 2;
-
-    for (const block of plan) {
-      if (block.group) {
-        groups.push({
-          name: block.group,
-          x: x - 14,
-          y,
-          width: NODE_WIDTH + 28,
-          height: block.height,
-        });
-        let memberY = y + GROUP_PADDING_TOP;
-        for (const node of block.members) {
-          positions.set(node.id, { id: node.id, x, y: memberY });
-          memberY += NODE_HEIGHT + ROW_GAP;
+    const stacks = columnPlans.get(column)!;
+    for (const stack of stacks) {
+      let y = (tallest - stack.height) / 2;
+      for (const block of stack.blocks) {
+        if (block.group) {
+          groups.push({
+            name: block.group,
+            x: x - 14,
+            y,
+            width: NODE_WIDTH + 28,
+            height: block.height,
+          });
+          let memberY = y + GROUP_PADDING_TOP;
+          for (const node of block.members) {
+            positions.set(node.id, { id: node.id, x, y: memberY });
+            memberY += NODE_HEIGHT + ROW_GAP;
+          }
+        } else {
+          positions.set(block.members[0].id, { id: block.members[0].id, x, y });
         }
-      } else {
-        positions.set(block.members[0].id, { id: block.members[0].id, x, y });
+        y += block.height + GROUP_GAP;
       }
-      y += block.height + GROUP_GAP;
+      x += NODE_WIDTH + SUB_COLUMN_GAP;
     }
+    // Trade the last sub-column gap for the wider gap between depths.
+    x += COLUMN_GAP - SUB_COLUMN_GAP;
   }
 
   return {
     positions,
     groups,
-    width: (Math.max(...columnKeys) + 1) * (NODE_WIDTH + COLUMN_GAP),
+    width: Math.max(0, x - COLUMN_GAP),
     height: tallest,
   };
 }

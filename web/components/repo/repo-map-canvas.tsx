@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { layoutScan, NODE_WIDTH } from "@/lib/graph-layout";
 import {
+  foldScanGroups,
+  GROUP_NODE_PREFIX,
   KIND_META,
   type ScanNode,
   type ScanResult,
@@ -54,12 +56,22 @@ function MapInner({
   branch: string;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Groups start folded: the whole map at once is unreadable on one screen.
+  const groupNames = useMemo(
+    () => [...new Set(scan.nodes.map((node) => node.group).filter(Boolean))] as string[],
+    [scan],
+  );
+  const [collapsed, setCollapsed] = useState<Set<string>>(
+    () => new Set(groupNames),
+  );
+  useEffect(() => setCollapsed(new Set(groupNames)), [groupNames]);
   const { fitView } = useReactFlow();
 
   const { nodes, edges } = useMemo(() => {
-    const layout = layoutScan(scan.nodes, scan.edges);
-    const incoming = new Set(scan.edges.map((edge) => edge.to));
-    const outgoing = new Set(scan.edges.map((edge) => edge.from));
+    const view = foldScanGroups(scan, collapsed);
+    const layout = layoutScan(view.nodes, view.edges);
+    const incoming = new Set(view.edges.map((edge) => edge.to));
+    const outgoing = new Set(view.edges.map((edge) => edge.from));
 
     // Group frames render behind the cards as unselectable nodes. The size
     // goes on the node itself (width/height AND style): without it React Flow
@@ -78,7 +90,7 @@ function MapInner({
       zIndex: 0,
     }));
 
-    const cards: FlowNode[] = scan.nodes.map((node) => {
+    const cards: FlowNode[] = view.nodes.map((node) => {
       const position = layout.positions.get(node.id) ?? { x: 0, y: 0 };
       return {
         id: node.id,
@@ -89,13 +101,14 @@ function MapInner({
           hasIncoming: incoming.has(node.id),
           hasOutgoing: outgoing.has(node.id),
           selected: selectedId === node.id,
+          folded: node.id.startsWith(GROUP_NODE_PREFIX),
         } satisfies ScanNodeData,
         width: NODE_WIDTH,
         zIndex: 1,
       };
     });
 
-    const flowEdges: Edge[] = scan.edges.map((edge, index) => ({
+    const flowEdges: Edge[] = view.edges.map((edge, index) => ({
       id: `e${index}`,
       source: edge.from,
       target: edge.to,
@@ -110,13 +123,16 @@ function MapInner({
     }));
 
     return { nodes: [...frames, ...cards], edges: flowEdges };
-  }, [scan, selectedId]);
+  }, [scan, collapsed, selectedId]);
 
-  // Re-frame when a different scan arrives.
+  // Re-frame when the scan changes or a group folds/unfolds.
   useEffect(() => {
-    const timer = setTimeout(() => fitView({ padding: 0.12, duration: 300, minZoom: 0.55, maxZoom: 1.1 }), 60);
+    const timer = setTimeout(
+      () => fitView({ padding: 0.12, duration: 300, minZoom: 0.55, maxZoom: 1.1 }),
+      60,
+    );
     return () => clearTimeout(timer);
-  }, [scan, fitView]);
+  }, [scan, collapsed, fitView]);
 
   const selected: ScanNode | undefined = scan.nodes.find(
     (node) => node.id === selectedId,
@@ -132,9 +148,18 @@ function MapInner({
         nodes={nodes}
         nodesConnectable={false}
         nodesDraggable={false}
-        onNodeClick={(_, node) =>
-          setSelectedId((current) => (current === node.id ? null : node.id))
-        }
+        onNodeClick={(_, node) => {
+          if (node.id.startsWith(GROUP_NODE_PREFIX)) {
+            const name = node.id.slice(GROUP_NODE_PREFIX.length);
+            setCollapsed((current) => {
+              const next = new Set(current);
+              next.delete(name);
+              return next;
+            });
+            return;
+          }
+          setSelectedId((current) => (current === node.id ? null : node.id));
+        }}
         onPaneClick={() => setSelectedId(null)}
         panOnDrag
         proOptions={{ hideAttribution: true }}
@@ -157,7 +182,9 @@ function MapInner({
       </Canvas>
 
       {selected && (
-        <aside className="absolute inset-y-0 right-0 z-20 w-80 overflow-y-auto border-l bg-background/95 p-4 shadow-lg backdrop-blur">
+        // Narrow viewports get a bottom sheet: an 80-unit side panel would
+        // cover most of a phone-width canvas.
+        <aside className="absolute inset-x-0 bottom-0 z-20 max-h-[60%] overflow-y-auto border-t bg-background/95 p-4 shadow-lg backdrop-blur sm:inset-x-auto sm:inset-y-0 sm:right-0 sm:max-h-none sm:w-80 sm:border-t-0 sm:border-l">
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1">
               <h3 className="font-semibold text-sm">{selected.label}</h3>
