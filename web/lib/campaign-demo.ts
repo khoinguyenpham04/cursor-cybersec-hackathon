@@ -1,6 +1,7 @@
 import {
   caseKind,
   filterRepoSessions,
+  listSessions,
   newCampaignSessionId,
   saveSession,
   type ReviewSession,
@@ -15,14 +16,15 @@ export function isValidLedgerCaseId(value: string): boolean {
   return LEDGER_CASE_RE.test(value);
 }
 
+export function safeLedgerCaseId(value?: string | null): string {
+  return value && isValidLedgerCaseId(value) ? value : DEMO_LEDGER_CASE;
+}
+
 /** Kickoff text the CampaignOrchestrator skill recognizes for the fixture. */
 export function campaignDemoKickoffMessage(
   ledgerCaseId = DEMO_LEDGER_CASE,
 ): string {
-  const safe = isValidLedgerCaseId(ledgerCaseId)
-    ? ledgerCaseId
-    : DEMO_LEDGER_CASE;
-  return `Review ${safe}`;
+  return `Review ${safeLedgerCaseId(ledgerCaseId)}`;
 }
 
 /** Create a campaign case session for a repo and return it (caller navigates). */
@@ -31,9 +33,7 @@ export function createCampaignDemoSession(
   repo: string,
   ledgerCaseId = DEMO_LEDGER_CASE,
 ): ReviewSession {
-  const safe = isValidLedgerCaseId(ledgerCaseId)
-    ? ledgerCaseId
-    : DEMO_LEDGER_CASE;
+  const safe = safeLedgerCaseId(ledgerCaseId);
   const session: ReviewSession = {
     id: newCampaignSessionId(),
     kind: "campaign",
@@ -53,26 +53,27 @@ export function findOpenCampaignDemo(
   repo: string,
   ledgerCaseId = DEMO_LEDGER_CASE,
 ): ReviewSession | undefined {
-  const safe = isValidLedgerCaseId(ledgerCaseId)
-    ? ledgerCaseId
-    : DEMO_LEDGER_CASE;
+  const safe = safeLedgerCaseId(ledgerCaseId);
   return filterRepoSessions(sessions, owner, repo).find(
     (session) =>
       caseKind(session) === "campaign" &&
-      (session.ledgerCaseId ?? DEMO_LEDGER_CASE) === safe,
+      safeLedgerCaseId(session.ledgerCaseId) === safe,
   );
 }
 
-/** Reuse an open campaign case for this repo+fixture, or create one. */
+/**
+ * Reuse an open campaign case for this repo+fixture, or create one.
+ * Always re-reads localStorage so double-clicks don't duplicate fan-out.
+ */
 export function ensureCampaignDemoSession(
-  sessions: ReviewSession[],
   owner: string,
   repo: string,
   ledgerCaseId = DEMO_LEDGER_CASE,
 ): ReviewSession {
+  const safe = safeLedgerCaseId(ledgerCaseId);
   return (
-    findOpenCampaignDemo(sessions, owner, repo, ledgerCaseId) ??
-    createCampaignDemoSession(owner, repo, ledgerCaseId)
+    findOpenCampaignDemo(listSessions(), owner, repo, safe) ??
+    createCampaignDemoSession(owner, repo, safe)
   );
 }
 

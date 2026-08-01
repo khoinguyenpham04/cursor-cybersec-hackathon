@@ -65,6 +65,11 @@ export function useReviewSessions(): ReviewSession[] {
   return useSyncExternalStore(subscribe, read, () => EMPTY);
 }
 
+/** Synchronous storage snapshot (avoids stale React props on double-click). */
+export function listSessions(): ReviewSession[] {
+  return read();
+}
+
 export function getSession(id: string): ReviewSession | undefined {
   return read().find((session) => session.id === id);
 }

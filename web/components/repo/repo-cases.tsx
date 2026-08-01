@@ -42,7 +42,7 @@ export function RepoCases({ owner, repo }: { owner: string; repo: string }) {
   const [showReviewForm, setShowReviewForm] = useState(false);
 
   function startCampaign() {
-    const session = ensureCampaignDemoSession(sessions, owner, repo);
+    const session = ensureCampaignDemoSession(owner, repo);
     router.push(campaignCasePath(owner, repo, session.id));
   }
 

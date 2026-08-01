@@ -75,9 +75,9 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
 
   const sessions = useReviewSessions();
   const startCampaignDemo = useCallback(() => {
-    const session = ensureCampaignDemoSession(sessions, owner, repo);
+    const session = ensureCampaignDemoSession(owner, repo);
     router.push(campaignCasePath(owner, repo, session.id));
-  }, [sessions, owner, repo, router]);
+  }, [owner, repo, router]);
 
   const scan = useMemo(() => extractScan(agent.messages), [agent.messages]);
   const scanning = agent.status === "submitted" || agent.status === "streaming";
@@ -87,6 +87,15 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
   useEffect(() => {
     if (!scanning && stopping) setStopping(false);
   }, [scanning, stopping]);
+
+  useEffect(() => {
+    if (!stopping) return;
+    const timeout = window.setTimeout(() => {
+      setStopping(false);
+      setStopError((prev) => prev ?? "Stop timed out; try again or refresh.");
+    }, 10_000);
+    return () => window.clearTimeout(timeout);
+  }, [stopping]);
 
   useEffect(() => {
     if (scan) {
@@ -118,14 +127,16 @@ export function RepoWorkspace({ owner, repo }: { owner: string; repo: string }) 
         if (!aborted) {
           setStopError("Nothing was in flight to abort.");
           setStopping(false);
+          return;
         }
-        // Keep Stopping… until status leaves submitted/streaming.
+        // Pull latest settlement if SSE lags behind the abort ACK.
+        agent.refresh();
       })
-      .catch((error: Error) => {
-        setStopError(error.message);
+      .catch((error: unknown) => {
+        setStopError(error instanceof Error ? error.message : String(error));
         setStopping(false);
       });
-  }, [agentUrl, stopping]);
+  }, [agent, agentUrl, stopping]);
 
   // --- Dependency job (explicit) ------------------------------------------
   const [deps, setDeps] = useState<DepGraphData | null>(null);

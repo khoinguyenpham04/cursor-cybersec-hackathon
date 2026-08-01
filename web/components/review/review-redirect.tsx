@@ -1,7 +1,7 @@
 "use client";
 
 import { ReviewWorkspace } from "@/components/review/review-workspace";
-import { getSession, resolveSessionRepo } from "@/lib/sessions";
+import { casePath, getSession, resolveSessionRepo } from "@/lib/sessions";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -12,11 +12,8 @@ export function ReviewRedirect({ id }: { id: string }) {
 
   useEffect(() => {
     const session = getSession(id);
-    const resolved = session ? resolveSessionRepo(session) : null;
-    if (resolved) {
-      router.replace(
-        `/repo/${resolved.owner}/${resolved.repo}/case/${id}`,
-      );
+    if (session && resolveSessionRepo(session)) {
+      router.replace(casePath(session));
       return;
     }
     setOrphan(true);

@@ -19,7 +19,7 @@ import {
 } from "@/lib/campaign";
 import {
   campaignDemoKickoffMessage,
-  DEMO_LEDGER_CASE,
+  safeLedgerCaseId,
 } from "@/lib/campaign-demo";
 import { abortConversation } from "@/lib/flue-abort";
 import { getSession, updateSession, useReviewSessions } from "@/lib/sessions";
@@ -43,7 +43,8 @@ export function CampaignCaseWorkspace({
       sessions.find((entry) => entry.id === sessionId) ?? getSession(sessionId),
     [sessions, sessionId],
   );
-  const ledgerCaseId = session?.ledgerCaseId ?? DEMO_LEDGER_CASE;
+  const ledgerCaseId = safeLedgerCaseId(session?.ledgerCaseId);
+  const repoRef = `${owner}/${repo}`;
   const agentUrl = `/api/agents/campaign-orchestrator/${sessionId}`;
   const agent = useFlueAgent({ url: agentUrl });
 
@@ -57,18 +58,42 @@ export function CampaignCaseWorkspace({
     [agent.messages],
   );
 
+  // Persist repo/kind so shared links and updateSession stubs don't orphan to /review.
+  useEffect(() => {
+    updateSession(sessionId, {
+      kind: "campaign",
+      repo: repoRef,
+      ledgerCaseId,
+      pr: session?.pr ?? "",
+      title: session?.title ?? `Campaign · ${ledgerCaseId}`,
+    });
+  }, [sessionId, repoRef, ledgerCaseId, session?.pr, session?.title]);
+
   useEffect(() => {
     if (!working && stopping) setStopping(false);
   }, [working, stopping]);
 
   useEffect(() => {
+    if (!stopping) return;
+    const timeout = window.setTimeout(() => {
+      setStopping(false);
+      setStopError((prev) => prev ?? "Stop timed out; try again or refresh.");
+    }, 10_000);
+    return () => window.clearTimeout(timeout);
+  }, [stopping]);
+
+  useEffect(() => {
     if (!campaign) return;
+    const caseId = safeLedgerCaseId(campaign.caseId || ledgerCaseId);
     updateSession(sessionId, {
+      kind: "campaign",
+      repo: repoRef,
+      ledgerCaseId: caseId,
       campaignScore: campaign.campaignScore,
       headline: campaign.headline,
-      title: campaign.headline ?? `Campaign · ${campaign.caseId}`,
+      title: campaign.headline ?? `Campaign · ${caseId}`,
     });
-  }, [campaign, sessionId]);
+  }, [campaign, sessionId, repoRef, ledgerCaseId]);
 
   const kickoffSent = useRef(false);
   useEffect(() => {
@@ -93,13 +118,15 @@ export function CampaignCaseWorkspace({
         if (!aborted) {
           setStopError("Nothing was in flight to abort.");
           setStopping(false);
+          return;
         }
+        agent.refresh();
       })
-      .catch((error: Error) => {
-        setStopError(error.message);
+      .catch((error: unknown) => {
+        setStopError(error instanceof Error ? error.message : String(error));
         setStopping(false);
       });
-  }, [agentUrl, stopping]);
+  }, [agent, agentUrl, stopping]);
 
   const canRerun = agent.historyReady && kickoffReady && !working;
 
