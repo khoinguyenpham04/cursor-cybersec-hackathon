@@ -16,13 +16,13 @@ export function isCaseTab(value: string | null | undefined): value is CaseTab {
   );
 }
 
-/** Prefer Orchestration while work is in flight or no result yet; Report when ready. */
+/** Prefer Orchestration while work is in flight; Report when settled with a result. */
 export function defaultCaseTab(options: {
   working: boolean;
   hasResult: boolean;
   hasError?: boolean;
 }): CaseTab {
+  if (options.working) return "orchestration";
   if (options.hasResult) return "report";
-  if (options.working || !options.hasResult) return "orchestration";
-  return "overview";
+  return "orchestration";
 }

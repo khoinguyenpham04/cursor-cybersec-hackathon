@@ -53,12 +53,30 @@ export function CampaignCaseWorkspace({
   const agentUrl = `/api/agents/campaign-orchestrator/${sessionId}`;
   const agent = useFlueAgent({ url: agentUrl });
 
+  const [awaitingRun, setAwaitingRun] = useState(false);
   const working =
-    agent.status === "submitted" || agent.status === "streaming";
+    awaitingRun ||
+    agent.status === "submitted" ||
+    agent.status === "streaming";
   const [stopping, setStopping] = useState(false);
   const [stopError, setStopError] = useState<string | null>(null);
   const [kickoffReady, setKickoffReady] = useState(false);
   const [resetDefaultSignal, setResetDefaultSignal] = useState(0);
+
+  useEffect(() => {
+    if (!awaitingRun) return;
+    if (
+      agent.status === "submitted" ||
+      agent.status === "streaming" ||
+      agent.status === "error"
+    ) {
+      setAwaitingRun(false);
+      return;
+    }
+    // If send never flips status, don't leave the UI stuck "working".
+    const timeout = window.setTimeout(() => setAwaitingRun(false), 8_000);
+    return () => window.clearTimeout(timeout);
+  }, [awaitingRun, agent.status]);
   const campaign = useMemo(
     () => extractCampaign(agent.messages),
     [agent.messages],
@@ -173,6 +191,9 @@ export function CampaignCaseWorkspace({
 
   const rerun = useCallback(() => {
     if (!canRerun) return;
+    // Mark working immediately so CaseShell prefers Orchestration before
+    // Flue status flips (stale hasResult would otherwise snap back to Report).
+    setAwaitingRun(true);
     setResetDefaultSignal((n) => n + 1);
     void agent.sendMessage(
       `Re-investigate ${ledgerCaseId}: load_fixture_case if needed, investigate_case, then submit_campaign.`,

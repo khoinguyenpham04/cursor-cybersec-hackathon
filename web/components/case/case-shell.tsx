@@ -55,11 +55,13 @@ export function CaseShell({
   const urlTab = searchParams.get("tab");
 
   const userPicked = useRef(isCaseTab(urlTab));
-  const autoSwitchedToReport = useRef(false);
-  /** Last tab we intentionally wrote — ignore stale URL until it catches up. */
+  /** Ignore stale ?tab= until our router.replace lands. */
   const pendingUrlTab = useRef<CaseTab | null>(
     isCaseTab(urlTab) ? urlTab : null,
   );
+  /** After Re-run, stay on Orchestration until work actually starts. */
+  const holdOrchestration = useRef(false);
+  const wasWorking = useRef(working);
 
   const [tab, setTab] = useState<CaseTab>(() =>
     isCaseTab(urlTab)
@@ -84,15 +86,23 @@ export function CaseShell({
 
   const goToTab = useCallback(
     (next: CaseTab, source: "user" | "auto") => {
-      if (source === "user") userPicked.current = true;
+      if (source === "user") {
+        userPicked.current = true;
+        holdOrchestration.current = false;
+      }
       setTab(next);
       replaceUrlTab(next);
     },
     [replaceUrlTab],
   );
 
+  // Stable callers so URL-driven callback identity changes don't re-fire effects.
+  const goToTabRef = useRef(goToTab);
+  const replaceUrlTabRef = useRef(replaceUrlTab);
+  goToTabRef.current = goToTab;
+  replaceUrlTabRef.current = replaceUrlTab;
+
   // Apply external URL changes (back/forward) once the address bar catches up.
-  // Do not snap local state back to a stale urlTab while our replace is in flight.
   useEffect(() => {
     if (!isCaseTab(urlTab)) return;
     if (urlTab === tab) {
@@ -104,37 +114,55 @@ export function CaseShell({
       return;
     }
     userPicked.current = true;
+    holdOrchestration.current = false;
     pendingUrlTab.current = urlTab;
     setTab(urlTab);
   }, [urlTab, tab]);
 
-  // Auto defaults until the user picks a tab.
-  useEffect(() => {
-    if (userPicked.current) return;
-    const next = defaultCaseTab({ working, hasResult, hasError });
-    if (next === tab) {
-      replaceUrlTab(next);
-      return;
-    }
-    goToTab(next, "auto");
-  }, [working, hasResult, hasError, tab, goToTab, replaceUrlTab]);
-
-  // One-shot auto-switch to Report when a result first appears (only if user
-  // has not already chosen a tab).
-  useEffect(() => {
-    if (!hasResult || autoSwitchedToReport.current) return;
-    autoSwitchedToReport.current = true;
-    if (userPicked.current) return;
-    goToTab("report", "auto");
-  }, [hasResult, goToTab]);
-
-  // Re-run / explicit reset → Orchestration.
+  // Re-run / explicit reset → Orchestration (signal-only; never re-run on goToTab churn).
   useEffect(() => {
     if (resetDefaultSignal == null || resetDefaultSignal <= 0) return;
     userPicked.current = false;
-    autoSwitchedToReport.current = false;
-    goToTab("orchestration", "auto");
-  }, [resetDefaultSignal, goToTab]);
+    holdOrchestration.current = true;
+    goToTabRef.current("orchestration", "auto");
+  }, [resetDefaultSignal]);
+
+  // Release the re-run hold once work is in flight.
+  useEffect(() => {
+    if (working && holdOrchestration.current) {
+      holdOrchestration.current = false;
+    }
+  }, [working]);
+
+  // Auto defaults until the user picks a tab (or during re-run hold).
+  useEffect(() => {
+    if (userPicked.current) return;
+
+    if (holdOrchestration.current) {
+      if (tab !== "orchestration") {
+        goToTabRef.current("orchestration", "auto");
+      } else {
+        replaceUrlTabRef.current("orchestration");
+      }
+      return;
+    }
+
+    const next = defaultCaseTab({ working, hasResult, hasError });
+    if (next === tab) {
+      replaceUrlTabRef.current(next);
+      return;
+    }
+    goToTabRef.current(next, "auto");
+  }, [working, hasResult, hasError, tab]);
+
+  // When a run finishes with a result, switch to Report once (unless user picked).
+  useEffect(() => {
+    const finished = wasWorking.current && !working;
+    wasWorking.current = working;
+    if (!finished || !hasResult || userPicked.current) return;
+    holdOrchestration.current = false;
+    goToTabRef.current("report", "auto");
+  }, [working, hasResult]);
 
   function onTabChange(value: string | number | null) {
     const next = String(value);
