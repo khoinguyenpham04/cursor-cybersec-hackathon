@@ -6,7 +6,8 @@
 		"dev": "vite dev",
 		"build": "vite build",
 		"start": "node dist/server.mjs",
-		"check:types": "tsc --noEmit"
+		"check:types": "tsc --noEmit",
+		"eval:fixture": "node --experimental-strip-types src/ledger/eval-fixture.ts"
 	},
 	"dependencies": {
 		"@flue/runtime": "^2.0.0",

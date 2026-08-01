@@ -1,1 +1,6 @@
 .DS_Store
+agent/data/ledger/
+agent/data/flue.db
+agent/node_modules/
+web/node_modules/
+web/.next/

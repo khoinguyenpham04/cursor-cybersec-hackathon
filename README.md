@@ -1,25 +1,54 @@
-# PR Reviewer
+# Supply-chain campaign orchestrator (+ PR reviewer)
 
-AI code review for GitHub pull requests — a [Flue](https://flueframework.com) agent with a
-Codex-style Next.js UI.
+Multi-agent [Flue](https://flueframework.com) system that detects **open-source
+supply-chain campaigns across PR sequences**, plus the original single-PR
+adversarial reviewer.
 
-Paste a PR link, and the agent fetches the diff, reviews every change with
-Claude, and streams back findings with severities and `path:line` references.
-Ask follow-up questions in the same conversation; switch to the Diff tab to
-read the change yourself.
+## Agents
+
+| Route | Role |
+|---|---|
+| `/agents/campaign-orchestrator` | Thin parent + specialists over a shared Risk Ledger; fan-out enforced by `investigate_case` (durable + harness) |
+| `/agents/pr-reviewer` | Original single-PR adversarial code review |
+
+Orchestrate reads **Case Bundles** from `agent/src/ledger` (facts). Ingest owns
+writing real cases; this branch ships a fixture (`fixture-boiling-frog`) so the
+orchestrator can be developed in parallel.
+
+`investigate_case` is the control plane: it dispatches specialists (via harness
+`task`), **verifies ledger-backed coverage for that run**, persists an
+`InvestigationPacket`, and `submit_campaign` only accepts `{ caseId, runId }`
+(draft fields are loaded server-side). Parallelism of the three `task` calls is
+still issued by the harness model in one batch — Flue has no programmatic
+`session.task()` — but coverage cannot be satisfied by invented or pre-existing
+claims.
+
+```bash
+# terminal 1
+cd agent && npm install && npm run dev
+
+# demo campaign (CLI)
+cd agent
+npx flue run src/agents/campaign-orchestrator.ts --message "Review fixture-boiling-frog"
+
+# deterministic contract check (no LLM)
+npm run eval:fixture
+```
 
 ## Structure
 
 ```
 agent/   Flue agent server (Hono + Vite, Node target)
-  src/agents/pr-reviewer.ts   the PrReviewer agent (model + system prompt)
-  src/tools/github.ts         fetch_pr / fetch_pr_diff / fetch_file tools
-  src/app.ts                  route map — mounts /agents/pr-reviewer
+  src/agents/campaign-orchestrator.ts   thin campaign parent
+  src/tools/investigate.ts              durable+harness fan-out control plane
+  src/subagents/                        graph / provenance / ci / composer
+  src/ledger/                           Case Bundle + Claim contract + fixtures
+  src/agents/pr-reviewer.ts             single-PR adversarial reviewer
+  src/app.ts                            mounts both agent routes
 
 web/     Next.js app (App Router, shadcn/ui, Vercel AI Elements)
+  lib/campaign.ts             extract submit_campaign output (not yet wired into UI)
   components/review/          session sidebar, transcript, diff viewer
-  app/api/github/pr/          server route backing the Diff tab
-  next.config.ts              proxies /api/agents/* → the Flue server
 ```
 
 The browser talks only to Next.js. `useFlueAgent` (from `@flue/react`) opens the
