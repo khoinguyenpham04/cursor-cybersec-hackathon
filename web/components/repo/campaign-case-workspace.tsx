@@ -9,6 +9,7 @@ import {
   PromptInputTextarea,
   PromptInputTools,
 } from "@/components/ai-elements/prompt-input";
+import { CaseOrchestration } from "@/components/case/case-orchestration";
 import { CaseShell } from "@/components/case/case-shell";
 import { Transcript } from "@/components/review/transcript";
 import { Badge } from "@/components/ui/badge";
@@ -216,20 +217,7 @@ export function CampaignCaseWorkspace({
       hasError={agent.status === "error"}
       hasResult={Boolean(campaign)}
       orchestration={
-        <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 px-4 py-6 lg:px-6">
-          <p className="font-medium text-sm">
-            {working
-              ? "Investigating the PR sequence…"
-              : kickoffReady
-                ? "Waiting for control-plane tools"
-                : "Preparing investigation…"}
-          </p>
-          <p className="text-muted-foreground text-sm text-pretty">
-            Orchestration detail lands in the next slice. For now, watch the
-            Transcript tab or wait for the Report when{" "}
-            <code className="text-xs">submit_campaign</code> settles.
-          </p>
-        </div>
+        <CaseOrchestration messages={agent.messages} status={agent.status} />
       }
       overview={
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-6 lg:px-6">
