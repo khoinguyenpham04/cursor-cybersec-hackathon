@@ -81,7 +81,7 @@ export function RepoCases({ owner, repo }: { owner: string; repo: string }) {
             <h2 className="font-semibold text-lg">Cases</h2>
             <p className="text-muted-foreground text-sm text-pretty">
               {showDemoSequence
-                ? "Demo spine: open PR #9 (default), then Investigate sequence."
+                ? "Product sequence: open PR #9, then Investigate (seeded case demo-self-repo-8-11 — not live GitHub mining)."
                 : "PR reviews and campaign investigations for this repository."}
             </p>
           </div>
@@ -109,11 +109,13 @@ export function RepoCases({ owner, repo }: { owner: string; repo: string }) {
         {showDemoSequence && (
           <section className="space-y-3 rounded-lg border px-4 py-3">
             <div className="space-y-1">
-              <h3 className="font-medium text-sm">Boiling-frog sequence</h3>
+              <h3 className="font-medium text-sm">Product sequence (#8–#11)</h3>
               <p className="text-muted-foreground text-xs text-pretty">
-                Live substrate PRs #8–#11. For a short pitch, open{" "}
-                <span className="font-medium text-foreground">#9</span> only,
-                then run Investigate sequence.
+                Live review targets. Short pitch: open{" "}
+                <span className="font-medium text-foreground">#9</span>, then
+                Investigate sequence (loads seeded case{" "}
+                <code className="font-mono text-[10px]">demo-self-repo-8-11</code>
+                ).
               </p>
             </div>
             <ul className="flex flex-col gap-2">

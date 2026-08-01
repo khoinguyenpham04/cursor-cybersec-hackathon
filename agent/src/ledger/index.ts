@@ -19,6 +19,7 @@ export {
 	listCases,
 	listClaims,
 	listDeltas,
+	listFixtureIds,
 	loadFixture,
 	projectCaseForModel,
 	putCampaignResult,

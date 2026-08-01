@@ -1,14 +1,19 @@
+import { SELF_REPO } from "@/lib/repos";
 import {
   caseKind,
   filterRepoSessions,
   listSessions,
   newCampaignSessionId,
+  removeSession,
   saveSession,
   type ReviewSession,
 } from "@/lib/sessions";
 
-/** Built-in ledger fixture for the hackathon campaign demo. */
+/** Classic offline acme fixture (3 synthetic PRs). */
 export const DEMO_LEDGER_CASE = "fixture-boiling-frog";
+
+/** Product-repo sequence bound to live demo PRs #8–#11. */
+export const SELF_REPO_LEDGER_CASE = "demo-self-repo-8-11";
 
 const LEDGER_CASE_RE = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/;
 
@@ -20,10 +25,40 @@ export function safeLedgerCaseId(value?: string | null): string {
   return value && isValidLedgerCaseId(value) ? value : DEMO_LEDGER_CASE;
 }
 
-/** Kickoff text the CampaignOrchestrator skill recognizes for the fixture. */
-export function campaignDemoKickoffMessage(
-  ledgerCaseId = DEMO_LEDGER_CASE,
+/**
+ * Pick the ledger case for Investigate sequence.
+ * SELF_REPO → demo-self-repo-8-11 (PRs #8–#11). Other repos fall back to the
+ * classic fixture until arbitrary-repo ingest exists.
+ */
+export function ledgerCaseIdForRepo(owner: string, repo: string): string {
+  if (
+    owner.toLowerCase() === SELF_REPO.owner.toLowerCase() &&
+    repo.toLowerCase() === SELF_REPO.repo.toLowerCase()
+  ) {
+    return SELF_REPO_LEDGER_CASE;
+  }
+  return DEMO_LEDGER_CASE;
+}
+
+/** Resolve stored case id with repo-aware default (never invent classic on SELF_REPO). */
+export function resolveLedgerCaseId(
+  owner: string,
+  repo: string,
+  stored?: string | null,
 ): string {
+  const preferred = ledgerCaseIdForRepo(owner, repo);
+  if (stored && isValidLedgerCaseId(stored)) {
+    // Pre-bind rehearsals left classic id on the product repo — treat as preferred.
+    if (preferred === SELF_REPO_LEDGER_CASE && stored === DEMO_LEDGER_CASE) {
+      return preferred;
+    }
+    return stored;
+  }
+  return preferred;
+}
+
+/** Kickoff text the CampaignOrchestrator skill recognizes. */
+export function campaignDemoKickoffMessage(ledgerCaseId?: string | null): string {
   return `Review ${safeLedgerCaseId(ledgerCaseId)}`;
 }
 
@@ -31,14 +66,19 @@ export function campaignDemoKickoffMessage(
 export function createCampaignDemoSession(
   owner: string,
   repo: string,
-  ledgerCaseId = DEMO_LEDGER_CASE,
+  ledgerCaseId?: string,
 ): ReviewSession {
-  const safe = safeLedgerCaseId(ledgerCaseId);
+  const safe = safeLedgerCaseId(
+    ledgerCaseId ?? ledgerCaseIdForRepo(owner, repo),
+  );
   const session: ReviewSession = {
     id: newCampaignSessionId(),
     kind: "campaign",
     pr: "",
-    title: `Campaign · ${safe}`,
+    title:
+      safe === SELF_REPO_LEDGER_CASE
+        ? "Campaign · PRs #8–#11"
+        : `Campaign · ${safe}`,
     createdAt: Date.now(),
     repo: `${owner}/${repo}`,
     ledgerCaseId: safe,
@@ -51,9 +91,11 @@ export function findOpenCampaignDemo(
   sessions: ReviewSession[],
   owner: string,
   repo: string,
-  ledgerCaseId = DEMO_LEDGER_CASE,
+  ledgerCaseId?: string,
 ): ReviewSession | undefined {
-  const safe = safeLedgerCaseId(ledgerCaseId);
+  const safe = safeLedgerCaseId(
+    ledgerCaseId ?? ledgerCaseIdForRepo(owner, repo),
+  );
   return filterRepoSessions(sessions, owner, repo).find(
     (session) =>
       caseKind(session) === "campaign" &&
@@ -62,20 +104,34 @@ export function findOpenCampaignDemo(
 }
 
 /**
- * Reuse an open campaign case for this repo+fixture, or create one.
+ * Reuse an open campaign case for this repo+case, or create one.
  * Uses a fresh sessions snapshot (in-memory cache after save) so same-tab
  * double-clicks don't duplicate fan-out.
  */
 export function ensureCampaignDemoSession(
   owner: string,
   repo: string,
-  ledgerCaseId = DEMO_LEDGER_CASE,
+  ledgerCaseId?: string,
 ): ReviewSession {
-  const safe = safeLedgerCaseId(ledgerCaseId);
-  return (
-    findOpenCampaignDemo(listSessions(), owner, repo, safe) ??
-    createCampaignDemoSession(owner, repo, safe)
+  const safe = safeLedgerCaseId(
+    ledgerCaseId ?? ledgerCaseIdForRepo(owner, repo),
   );
+  const existing = findOpenCampaignDemo(listSessions(), owner, repo, safe);
+  if (existing) return existing;
+
+  // Drop stale classic campaigns on SELF_REPO so Investigate always opens #8–#11.
+  if (safe === SELF_REPO_LEDGER_CASE) {
+    for (const session of filterRepoSessions(listSessions(), owner, repo)) {
+      if (
+        caseKind(session) === "campaign" &&
+        safeLedgerCaseId(session.ledgerCaseId) !== safe
+      ) {
+        removeSession(session.id);
+      }
+    }
+  }
+
+  return createCampaignDemoSession(owner, repo, safe);
 }
 
 export function campaignCasePath(
